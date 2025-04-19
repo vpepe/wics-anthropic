@@ -41,6 +41,9 @@ def index():
         {"code": "pl", "name": "Polski", "count": "1,652,000+ haseł"},
     ]
     
+    # Update the session with recent articles
+    update_recent_articles_in_session()
+    
     # Get recent articles from session
     recent_articles = session.get('recent_articles', [])
     
@@ -158,8 +161,12 @@ def process_job(job_id, title, language, max_translations):
         jobs[job_id]['progress'] = 100
         jobs[job_id]['result'] = synthesized_article
         
-        # Update recent articles in session
-        update_recent_articles(title, language)
+        # Store article metadata in the job rather than session
+        jobs[job_id]['article_info'] = {
+            'title': title,
+            'language': language,
+            'date': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
         
     except Exception as e:
         # Handle errors
@@ -167,26 +174,25 @@ def process_job(job_id, title, language, max_translations):
         jobs[job_id]['error'] = str(e)
         print(f"Error in job {job_id}: {e}")
 
-def update_recent_articles(title, language):
-    """Update the recent articles list in the session"""
-    recent_articles = session.get('recent_articles', [])
+# Global in-memory storage for recent articles
+recent_articles_storage = []
+
+def update_recent_articles_in_session():
+    """
+    This function should only be called within a request context.
+    It updates the session with recent articles from our in-memory storage.
+    """
+    # Get completed jobs and their article info
+    completed_articles = []
+    for job in jobs.values():
+        if job['status'] == 'completed' and 'article_info' in job:
+            completed_articles.append(job['article_info'])
     
-    # Add the new article at the beginning
-    new_article = {
-        'title': title,
-        'language': language,
-        'date': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    }
+    # Sort by date (newest first) and limit to 10
+    sorted_articles = sorted(completed_articles, key=lambda x: x['date'], reverse=True)[:10]
     
-    # Remove duplicates
-    recent_articles = [a for a in recent_articles if a['title'] != title or a['language'] != language]
-    
-    # Add new article and limit to 10
-    recent_articles.insert(0, new_article)
-    recent_articles = recent_articles[:10]
-    
-    # Update session
-    session['recent_articles'] = recent_articles
+    # Update the session
+    session['recent_articles'] = sorted_articles
 
 @app.route('/status/<job_id>')
 def status(job_id):
@@ -229,6 +235,9 @@ def article(job_id):
         {"code": "pt", "name": "Português"},
         {"code": "pl", "name": "Polski"},
     ]
+    
+    # Update recent articles in session when viewing an article
+    update_recent_articles_in_session()
     
     return render_template('article.html', 
                           article=job['result'], 
