@@ -1,241 +1,183 @@
-import { useState } from 'react';
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session
+import backend  # Import your existing backend.py
+import os
+import uuid
+import threading
+import time
 
-const WikiTranslator = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sourceLang, setSourceLang] = useState('en');
-  const [results, setResults] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [selectedTranslations, setSelectedTranslations] = useState([]);
-  const [synthesisResult, setSynthesisResult] = useState('');
+app = Flask(__name__)
+app.secret_key = os.urandom(24)  # For session management
 
-  // Common language codes and their names for the dropdown
-  const commonLanguages = [
-    { code: 'en', name: 'English' },
-    { code: 'es', name: 'Spanish' },
-    { code: 'fr', name: 'French' },
-    { code: 'de', name: 'German' },
-    { code: 'it', name: 'Italian' },
-    { code: 'pt', name: 'Portuguese' },
-    { code: 'ru', name: 'Russian' },
-    { code: 'ja', name: 'Japanese' },
-    { code: 'zh', name: 'Chinese' },
-    { code: 'ar', name: 'Arabic' },
-    { code: 'hi', name: 'Hindi' },
-    { code: 'ko', name: 'Korean' }
-  ];
+# In-memory storage for jobs (would use a database in production)
+jobs = {}
 
-  // Simulated API call to backend - in a real app, this would call your Python backend
-  const searchWikipedia = () => {
-    if (!searchTerm.trim()) {
-      setError('Please enter a search term');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
+@app.route('/')
+def index():
+    """Render the search page"""
+    languages = [
+        {"code": "en", "name": "English", "count": "6,974,000+ articles"},
+        {"code": "ja", "name": "日本語", "count": "1,457,000+ 記事"},
+        {"code": "ru", "name": "Русский", "count": "2,036,000+ статей"},
+        {"code": "de", "name": "Deutsch", "count": "3,001,000+ Artikel"},
+        {"code": "es", "name": "Español", "count": "2,021,000+ artículos"},
+        {"code": "fr", "name": "Français", "count": "2,674,000+ articles"},
+        {"code": "zh", "name": "中文", "count": "1,470,000+ 条目 / 條目"},
+        {"code": "it", "name": "Italiano", "count": "1,910,000+ voci"},
+        {"code": "pt", "name": "Português", "count": "1,146,000+ artigos"},
+        {"code": "pl", "name": "Polski", "count": "1,652,000+ haseł"},
+    ]
     
-    // This is a simulation - in a real implementation, this would be an actual API call
-    setTimeout(() => {
-      try {
-        // Example response structure based on your backend
-        const mockResponse = {
-          source: `(${sourceLang}) ${searchTerm}`,
-          translations: {
-            en: searchTerm,
-            es: `${searchTerm} (Español)`,
-            fr: `${searchTerm} (Français)`,
-            de: `${searchTerm} (Deutsch)`,
-            it: `${searchTerm} (Italiano)`,
-            ja: `${searchTerm} (日本語)`,
-            zh: `${searchTerm} (中文)`,
-            ru: `${searchTerm} (Русский)`,
-          }
-        };
-        
-        setResults(mockResponse);
-        setIsLoading(false);
-      } catch (err) {
-        setError('An error occurred while fetching data');
-        setIsLoading(false);
-      }
-    }, 1000);
-  };
+    # Get recent articles from session
+    recent_articles = session.get('recent_articles', [])
+    
+    return render_template('index.html', languages=languages, recent_articles=recent_articles)
 
-  const handleCheckboxChange = (langCode) => {
-    if (selectedTranslations.includes(langCode)) {
-      setSelectedTranslations(selectedTranslations.filter(code => code !== langCode));
-    } else {
-      setSelectedTranslations([...selectedTranslations, langCode]);
-    }
-  };
-
-  const synthesizeContent = () => {
-    if (selectedTranslations.length === 0) {
-      setError('Please select at least one language for synthesis');
-      return;
+@app.route('/search', methods=['POST'])
+def search():
+    """Handle the search form submission"""
+    title = request.form.get('title')
+    language = request.form.get('language', 'en')
+    max_translations = int(request.form.get('max_translations', 5))
+    
+    if not title:
+        return redirect(url_for('index'))
+    
+    # Create a job ID
+    job_id = str(uuid.uuid4())
+    
+    # Initialize job
+    jobs[job_id] = {
+        'title': title,
+        'language': language,
+        'max_translations': max_translations,
+        'status': 'queued',
+        'progress': 0,
+        'result': None,
+        'error': None
     }
     
-    setIsLoading(true);
+    # Start the synthesis process in a background thread
+    thread = threading.Thread(
+        target=process_job,
+        args=(job_id, title, language, max_translations)
+    )
+    thread.daemon = True
+    thread.start()
     
-    // In a real implementation, this would call your backend to gather content from each language
-    setTimeout(() => {
-      const synthesis = `
-# Synthesized Article: ${searchTerm}
+    # Redirect to status page
+    return redirect(url_for('status', job_id=job_id))
 
-## Content from ${selectedTranslations.length} languages:
-${selectedTranslations.map(lang => {
-  const langName = commonLanguages.find(l => l.code === lang)?.name || lang;
-  return `
-### ${langName} Version
-The article "${results.translations[lang] || `${searchTerm} (${lang})`}" contains unique cultural perspectives. In a real implementation, this would contain actual content synthesized from the ${langName} Wikipedia.
-  
-Some unique information found only in the ${langName} Wikipedia version:
-- Cultural significance specific to ${langName}-speaking regions
-- Different historical perspective
-- Additional facts and statistics relevant to ${langName}-speaking audience
-`;
-}).join('\n')}
-
-## Synthesis of Perspectives
-This synthesized version combines knowledge across all selected language versions, highlighting:
-- Cross-cultural similarities and differences
-- Supplementary information found only in specific language editions
-- Different cultural emphases and historical interpretations
-
-In a full implementation, this would process the actual content from each language's Wikipedia page and intelligently synthesize the information.
-`;
-      
-      setSynthesisResult(synthesis);
-      setIsLoading(false);
-    }, 1500);
-  };
-
-  return (
-    <div className="p-6 max-w-6xl mx-auto bg-white rounded-lg shadow-lg">
-      <h1 className="text-3xl font-bold text-blue-800 mb-6">Wikipedia Translation Synthesizer</h1>
-      
-      <div className="mb-8 bg-blue-50 p-4 rounded-lg">
-        <p className="text-gray-700">
-          This tool finds all available translations of a Wikipedia article and can synthesize content across different language versions to provide a more complete perspective.
-        </p>
-      </div>
-      
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="flex-grow">
-          <label htmlFor="search-term" className="block text-gray-700 font-medium mb-2">Wikipedia Article Title</label>
-          <input
-            id="search-term"
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Enter article title (e.g., 'Albert Einstein')"
-            className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+def process_job(job_id, title, language, max_translations):
+    """Background process to run the article synthesis"""
+    try:
+        # Update job status
+        jobs[job_id]['status'] = 'processing'
         
-        <div className="w-full md:w-48">
-          <label htmlFor="source-lang" className="block text-gray-700 font-medium mb-2">Source Language</label>
-          <select
-            id="source-lang"
-            value={sourceLang}
-            onChange={(e) => setSourceLang(e.target.value)}
-            className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {commonLanguages.map(lang => (
-              <option key={lang.code} value={lang.code}>
-                {lang.name} ({lang.code})
-              </option>
-            ))}
-          </select>
-        </div>
+        # Call your backend functions here
+        # This is a simplified version - you'll need to update this
+        # based on your actual backend.py functions
         
-        <div className="w-full md:w-48 self-end">
-          <button
-            onClick={searchWikipedia}
-            disabled={isLoading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md disabled:bg-blue-300"
-          >
-            {isLoading ? 'Searching...' : 'Search'}
-          </button>
-        </div>
-      </div>
-      
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-md">
-          {error}
-        </div>
-      )}
-      
-      {results && (
-        <div className="mb-8">
-          <h2 className="text-2xl font-semibold mb-4">Available Translations</h2>
-          <p className="mb-4">Source article: <span className="font-medium">{results.source}</span></p>
-          <p className="mb-2">Select languages to include in synthesis:</p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
-            {Object.keys(results.translations).map(langCode => {
-              const langName = commonLanguages.find(l => l.code === langCode)?.name || langCode;
-              return (
-                <div key={langCode} className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id={`lang-${langCode}`}
-                    checked={selectedTranslations.includes(langCode)}
-                    onChange={() => handleCheckboxChange(langCode)}
-                    className="h-5 w-5 text-blue-600"
-                  />
-                  <label htmlFor={`lang-${langCode}`} className="text-gray-700">
-                    ({langCode}) {langName}: {results.translations[langCode]}
-                  </label>
-                </div>
-              );
-            })}
-          </div>
-          
-          <div className="mt-6">
-            <button
-              onClick={synthesizeContent}
-              disabled={isLoading || selectedTranslations.length === 0}
-              className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-md disabled:bg-green-300"
-            >
-              {isLoading ? 'Synthesizing...' : 'Synthesize Selected Languages'}
-            </button>
-          </div>
-        </div>
-      )}
-      
-      {synthesisResult && (
-        <div className="mt-8 border-t pt-6">
-          <h2 className="text-2xl font-semibold mb-4">Synthesized Content</h2>
-          <div className="whitespace-pre-line bg-gray-50 p-6 rounded-lg border">
-            {synthesisResult}
-          </div>
-          <div className="mt-4">
-            <button
-              onClick={() => {
-                const blob = new Blob([synthesisResult], { type: 'text/markdown' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${searchTerm}-synthesized.md`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md"
-            >
-              Download as Markdown
-            </button>
-          </div>
-        </div>
-      )}
-      
-      <div className="mt-8 text-sm text-gray-500">
-        <p>Note: This frontend demo simulates the functionality. In a real implementation, it would connect to your Python backend to retrieve actual Wikipedia content across languages.</p>
-      </div>
-    </div>
-  );
-};
+        # Step 1: Get the original article
+        jobs[job_id]['progress'] = 10
+        original_text, langlinks = backend.get_wikipedia_article(title, language)
+        
+        if not original_text or not langlinks:
+            raise Exception(f"Could not find article '{title}' in {language}")
+        
+        # Step 2: Get translations
+        jobs[job_id]['progress'] = 30
+        translations = backend.get_all_translations(langlinks) + [(language, title)]
+        translation_content = backend.get_translation_content(translations)
+        
+        # Step 3: Translate articles
+        jobs[job_id]['progress'] = 50
+        translated_articles = {language: original_text}
+        
+        for lang, content in translation_content.items():
+            if lang != language and content:
+                translated = backend.translate_with_claude(content, lang, language)
+                if not translated.startswith("Translation failed:"):
+                    translated_articles[lang] = translated
+                # Update progress incrementally
+                progress_increment = 30 / len(translation_content)
+                jobs[job_id]['progress'] = min(80, jobs[job_id]['progress'] + progress_increment)
+        
+        # Step 4: Synthesize
+        jobs[job_id]['progress'] = 90
+        synthesized_article = backend.synthesize_with_claude(
+            translated_articles, language, title
+        )
+        
+        # Update job with result
+        jobs[job_id]['status'] = 'completed'
+        jobs[job_id]['progress'] = 100
+        jobs[job_id]['result'] = synthesized_article
+        
+        # Update recent articles in session
+        update_recent_articles(title, language)
+        
+    except Exception as e:
+        # Handle errors
+        jobs[job_id]['status'] = 'error'
+        jobs[job_id]['error'] = str(e)
+        print(f"Error in job {job_id}: {e}")
 
-export default WikiTranslator;
+def update_recent_articles(title, language):
+    """Update the recent articles list in the session"""
+    recent_articles = session.get('recent_articles', [])
+    
+    # Add the new article at the beginning
+    new_article = {
+        'title': title,
+        'language': language,
+        'date': time.strftime('%Y-%m-%d %H:%M:%S')
+    }
+    
+    # Remove duplicates
+    recent_articles = [a for a in recent_articles if a['title'] != title or a['language'] != language]
+    
+    # Add new article and limit to 10
+    recent_articles.insert(0, new_article)
+    recent_articles = recent_articles[:10]
+    
+    # Update session
+    session['recent_articles'] = recent_articles
+
+@app.route('/status/<job_id>')
+def status(job_id):
+    """Show the status page for a job"""
+    if job_id not in jobs:
+        return redirect(url_for('index'))
+    
+    job = jobs[job_id]
+    
+    if job['status'] == 'completed':
+        # Redirect to article page if job is complete
+        return redirect(url_for('article', job_id=job_id))
+    
+    return render_template('status.html', job=job)
+
+@app.route('/api/status/<job_id>')
+def api_status(job_id):
+    """API endpoint for getting job status via AJAX"""
+    if job_id not in jobs:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    return jsonify(jobs[job_id])
+
+@app.route('/article/<job_id>')
+def article(job_id):
+    """Show the synthesized article"""
+    if job_id not in jobs or jobs[job_id]['status'] != 'completed':
+        return redirect(url_for('index'))
+    
+    job = jobs[job_id]
+    
+    return render_template('article.html', 
+                          article=job['result'], 
+                          title=job['title'],
+                          language=job['language'],
+                          max_translations=job['max_translations'])
+
+if __name__ == '__main__':
+    app.run(debug=True)
