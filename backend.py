@@ -1,35 +1,108 @@
 #!/usr/bin/env python3
 """
-Wikipedia Synthesizer
+Wikipedia Synthesizer with Claude Tools
 
 This script takes a Wikipedia article in one language, finds translations,
+uses Claude to select the most relevant languages for the topic,
 translates them all to the target language using Claude AI, and synthesizes
 them into a comprehensive article.
 """
+
+from dotenv import load_dotenv
+load_dotenv()
 
 import argparse
 import json
 import os
 import time
-from typing import Dict, List, Optional, Tuple
+import tiktoken
+from typing import Dict, List, Optional, Tuple, Any, Union
 import wikipediaapi
+from multiprocessing.dummy import Pool as ThreadPool
 from anthropic import Anthropic
 
 # Claude API information
-CLAUDE_API_KEY = "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"
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
 CLAUDE_MODEL = "claude-3-7-sonnet-latest"
-CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"  # API endpoint
 
-def get_wikipedia_article(title: str, language: str) -> Tuple[Optional[str], Optional[Dict]]:
+# Define the search_wikipedia tool
+SEARCH_WIKIPEDIA_TOOL = {
+    "name": "search_wikipedia",
+    "description": "Search for a Wikipedia article by title and language",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "title": {
+                "type": "string",
+                "description": "The title of the Wikipedia article"
+            },
+            "language": {
+                "type": "string",
+                "description": "The language code (e.g., 'en', 'es', 'fr')"
+            },
+            "page": {
+                "type": "integer",
+                "description": "Page number for paginated results (starting from 0)",
+                "default": 0
+            }
+        },
+        "required": ["title", "language"]
+    }
+}
+
+# Define tools list for Claude
+CLAUDE_TOOLS = [SEARCH_WIKIPEDIA_TOOL]
+
+def count_tokens(text: str) -> int:
     """
-    Retrieves a Wikipedia article in the specified language.
+    Count the number of tokens in a string.
+    
+    Args:
+        text: The text to count tokens for
+        
+    Returns:
+        Number of tokens
+    """
+    enc = tiktoken.get_encoding("cl100k_base")  # Claude's encoding
+    return len(enc.encode(text))
+
+def paginate_text(text: str, tokens_per_page: int = 10000) -> List[str]:
+    """
+    Paginate text based on token count.
+    
+    Args:
+        text: The text to paginate
+        tokens_per_page: Maximum tokens per page
+        
+    Returns:
+        List of text pages
+    """
+    enc = tiktoken.get_encoding("cl100k_base")  # Claude's encoding
+    tokens = enc.encode(text)
+    
+    pages = []
+    start_idx = 0
+    
+    while start_idx < len(tokens):
+        end_idx = min(start_idx + tokens_per_page, len(tokens))
+        page_tokens = tokens[start_idx:end_idx]
+        page_text = enc.decode(page_tokens)
+        pages.append(page_text)
+        start_idx = end_idx
+    
+    return pages
+
+def search_wikipedia(title: str, language: str, page: int = 0) -> Dict[str, Any]:
+    """
+    Function to implement the search_wikipedia tool functionality.
     
     Args:
         title: The title of the Wikipedia article
-        language: The language code (e.g., 'en', 'es', 'fr')
+        language: Language code
+        page: Page number (0-indexed)
         
     Returns:
-        Tuple containing article text and language links if successful, else (None, None)
+        Dictionary with article data
     """
     wiki_wiki = wikipediaapi.Wikipedia(
         language=language,
@@ -37,30 +110,176 @@ def get_wikipedia_article(title: str, language: str) -> Tuple[Optional[str], Opt
         user_agent='WikipediaSynthesizer/1.0'
     )
     
-    page = wiki_wiki.page(title)
+    wiki_page = wiki_wiki.page(title)
     
-    if not page.exists():
-        return None, None
+    if not wiki_page.exists():
+        return {
+            "found": False,
+            "error": f"Article '{title}' not found in {language} Wikipedia"
+        }
     
-    return page.text, page.langlinks
+    # Get the full text and paginate it
+    full_text = wiki_page.text
+    pages = paginate_text(full_text)
+    
+    # Get all language links
+    langlinks = []
+    for lang, link in wiki_page.langlinks.items():
+        langlinks.append({
+            "language": lang,
+            "title": link.title
+        })
+    
+    # Make sure requested page exists
+    if page >= len(pages):
+        return {
+            "found": True,
+            "error": f"Page {page} not available. Article has {len(pages)} pages.",
+            "total_pages": len(pages)
+        }
+    
+    return {
+        "found": True,
+        "title": wiki_page.title,
+        "language": language,
+        "page": page,
+        "total_pages": len(pages),
+        "content": pages[page],
+        "langlinks": langlinks,
+        "url": wiki_page.fullurl
+    }
 
-def get_all_translations(langlinks: Dict) -> List[Tuple[str, str]]:
+def get_wikipedia_article_with_tool(client: Anthropic, title: str, language: str) -> Tuple[Optional[str], Optional[List[Dict]]]:
     """
-    Retrieves all available translations for an article.
+    Retrieves a Wikipedia article using the search_wikipedia tool.
     
     Args:
-        langlinks: Dictionary of language links from wikipediaapi
+        client: Anthropic client
+        title: The title of the Wikipedia article
+        language: The language code
         
     Returns:
-        List of tuples containing (language_code, article_title)
+        Tuple containing article text and language links if successful, else (None, None)
     """
-    return [(lang, link.title) for lang, link in langlinks.items()]
+    full_text = ""
+    current_page = 0
+    langlinks = None
+    
+    while True:
+        try:
+            result = search_wikipedia(title, language, current_page)
+            
+            if not result["found"]:
+                print(f"Article not found: {result.get('error', 'Unknown error')}")
+                return None, None
+            
+            full_text += result["content"]
+            
+            # Store langlinks from first page
+            if current_page == 0:
+                langlinks = result["langlinks"]
+            
+            # Check if we've reached the last page
+            if current_page >= result["total_pages"] - 1:
+                break
+                
+            current_page += 1
+            print(f"  Retrieved page {current_page} of {result['total_pages']}")
+            
+        except Exception as e:
+            print(f"Error retrieving Wikipedia article: {e}")
+            if full_text and langlinks:
+                # Return what we have so far
+                return full_text, langlinks
+            return None, None
+    
+    return full_text, langlinks
 
-def get_translation_content(translations: List[Tuple[str, str]]) -> Dict[str, Optional[str]]:
+def select_relevant_languages(client: Anthropic, title: str, source_lang: str, 
+                             all_lang_links: List[Dict], max_translations: int = 5) -> List[str]:
     """
-    Retrieves the content of each translated article.
+    Uses Claude to select the most relevant languages for a given topic.
     
     Args:
+        client: Anthropic client
+        title: The article title
+        source_lang: Source language code
+        all_lang_links: List of language links
+        max_translations: Maximum number of languages to select
+        
+    Returns:
+        List of selected language codes
+    """
+    # Extract language codes and titles for prompt
+    lang_options = [f"{link['language']}: {link['title']}" for link in all_lang_links]
+    lang_options_text = "\n".join(lang_options)
+    
+    prompt = f"""I need your help selecting the most relevant languages for Wikipedia articles about "{title}".
+
+Given the topic "{title}", which {max_translations} languages would likely have the most unique, comprehensive, 
+or culturally significant information about this topic? I need you to select languages that would provide diverse 
+perspectives and complementary information, not just the languages with the longest articles.
+
+Here are the available language options (language code: article title in that language):
+{lang_options_text}
+
+Choose exactly {max_translations} languages (NOT including the source language {source_lang}), providing your rationale 
+for each. Format your response as a JSON object with an array of language codes, like this:
+{{
+  "selected_languages": ["xx", "yy", "zz", "aa", "bb"],
+  "rationale": "brief explanation of your choices"
+}}"""
+    
+    try:
+        response = client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=1000,
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2
+        )
+        
+        # Extract JSON response
+        response_text = response.content[0].text
+        
+        # Find JSON object in response
+        import re
+        json_match = re.search(r'({[\s\S]*})', response_text)
+        
+        if json_match:
+            try:
+                json_data = json.loads(json_match.group(1))
+                selected_languages = json_data.get("selected_languages", [])
+                
+                # Make sure we got exactly the right number
+                if len(selected_languages) > max_translations:
+                    selected_languages = selected_languages[:max_translations]
+                
+                print(f"Selected languages: {selected_languages}")
+                print(f"Rationale: {json_data.get('rationale', 'No rationale provided')}")
+                
+                return selected_languages
+                
+            except json.JSONDecodeError:
+                print(f"Failed to parse JSON response: {response_text}")
+        else:
+            print(f"Failed to extract JSON from response: {response_text}")
+            
+    except Exception as e:
+        print(f"Error in Claude API call: {e}")
+    
+    # Fallback to selecting languages based on alphabetical order if Claude fails
+    print("Falling back to alphabetical order selection")
+    langs = [link["language"] for link in all_lang_links if link["language"] != source_lang]
+    return langs[:max_translations]
+
+def get_translation_content_with_tool(client: Anthropic, translations: List[Tuple[str, str]]) -> Dict[str, Optional[str]]:
+    """
+    Retrieves the content of each translated article using the search_wikipedia tool.
+    
+    Args:
+        client: Anthropic client
         translations: List of tuples containing (language_code, article_title)
         
     Returns:
@@ -70,26 +289,46 @@ def get_translation_content(translations: List[Tuple[str, str]]) -> Dict[str, Op
     
     for lang, title in translations:
         print(f"  Retrieving {lang} article: {title}")
-        wiki_wiki = wikipediaapi.Wikipedia(
-            language=lang,
-            extract_format=wikipediaapi.ExtractFormat.WIKI,
-            user_agent='WikipediaSynthesizer/1.0'
-        )
         
-        page = wiki_wiki.page(title)
+        full_text = ""
+        current_page = 0
         
-        if page.exists():
-            translation_content[lang] = page.text
-        else:
-            translation_content[lang] = None
+        while True:
+            try:
+                result = search_wikipedia(title, lang, current_page)
+                
+                if not result["found"]:
+                    print(f"  Article not found: {result.get('error', 'Unknown error')}")
+                    translation_content[lang] = None
+                    break
+                
+                full_text += result["content"]
+                
+                # Check if we've reached the last page
+                if current_page >= result["total_pages"] - 1:
+                    translation_content[lang] = full_text
+                    break
+                    
+                current_page += 1
+                print(f"    Retrieved page {current_page} of {result['total_pages']}")
+                
+            except Exception as e:
+                print(f"  Error retrieving Wikipedia article: {e}")
+                if full_text:
+                    # Return what we have so far
+                    translation_content[lang] = full_text
+                else:
+                    translation_content[lang] = None
+                break
             
     return translation_content
 
-def translate_with_claude(text: str, source_lang: str, target_lang: str) -> str:
+def translate_with_claude(client: Anthropic, text: str, source_lang: str, target_lang: str) -> str:
     """
     Translates text using the Claude API with streaming.
     
     Args:
+        client: Anthropic client
         text: The text to translate
         source_lang: Source language code
         target_lang: Target language code
@@ -101,10 +340,7 @@ def translate_with_claude(text: str, source_lang: str, target_lang: str) -> str:
     if source_lang == target_lang:
         return text
     
-    # Create Anthropic client
-    client = Anthropic(api_key=CLAUDE_API_KEY)
-    
-    # Limit text length to handle API constraints (Claude has max token limits)
+    # Limit text length to handle API constraints
     text = text[:50000] if len(text) > 50000 else text
     
     prompt = f"""Translate the following text from {source_lang} to {target_lang}. 
@@ -140,11 +376,12 @@ TRANSLATION:"""
         print(f"Error in Claude API call: {e}")
         return f"Translation failed: {str(e)}"
 
-def synthesize_with_claude(articles: Dict[str, str], target_lang: str, original_title: str) -> str:
+def synthesize_with_claude(client: Anthropic, articles: Dict[str, str], target_lang: str, original_title: str) -> str:
     """
     Synthesizes multiple translated articles into one comprehensive article using Claude with streaming.
     
     Args:
+        client: Anthropic client
         articles: Dictionary mapping language codes to translated article content
         target_lang: Target language code
         original_title: Original article title
@@ -152,16 +389,12 @@ def synthesize_with_claude(articles: Dict[str, str], target_lang: str, original_
     Returns:
         Synthesized article
     """
-    # Create Anthropic client
-    client = Anthropic(api_key=CLAUDE_API_KEY)
-    
     # Create a structured input for Claude
     context = f"""I have collected versions of the Wikipedia article '{original_title}' from {len(articles)} different language editions, and translated them all to {target_lang}.
 
 I will now provide each version. Your task is to synthesize these into a single comprehensive article."""
     
-    # We need to be careful about token limits, so we'll trim the content and 
-    # maybe need to batch process if there are many languages
+    # We need to be careful about token limits, so we'll trim the content
     article_sections = []
     
     for lang, content in articles.items():
@@ -220,6 +453,30 @@ SYNTHESIZED ARTICLE:"""
         print(f"Error in Claude API call: {e}")
         return f"Synthesis failed: {str(e)}"
 
+def translate_article_worker(args):
+    """
+    Worker function for parallel translation.
+    
+    Args:
+        args: Tuple containing (client, content, source_lang, target_lang, lang)
+        
+    Returns:
+        Tuple of (lang, translated_content)
+    """
+    client, content, source_lang, target_lang, lang = args
+    
+    if lang == target_lang or content is None:
+        return lang, content
+        
+    print(f"  Translating from {lang} to {target_lang}...")
+    translated = translate_with_claude(client, content, lang, target_lang)
+    
+    if translated.startswith("Translation failed:"):
+        print(f"  Warning: {translated}")
+        return lang, None
+    
+    return lang, translated
+
 def main():
     """Main function to run the Wikipedia article synthesizer."""
     parser = argparse.ArgumentParser(description='Synthesize Wikipedia articles from different languages')
@@ -229,6 +486,8 @@ def main():
                         help='Maximum number of translations to process (default: 5)')
     parser.add_argument('--output', help='Output file path (optional)')
     parser.add_argument('--api_key', help='Claude API key (optional, overrides default)')
+    parser.add_argument('--threads', type=int, default=10,
+                        help='Number of parallel threads for translation (default: 10)')
     
     args = parser.parse_args()
     
@@ -237,8 +496,11 @@ def main():
     if args.api_key:
         CLAUDE_API_KEY = args.api_key
     
+    # Create Anthropic client
+    client = Anthropic(api_key=CLAUDE_API_KEY)
+    
     print(f"Step 1: Retrieving article '{args.title}' in {args.language}...")
-    original_text, langlinks = get_wikipedia_article(args.title, args.language)
+    original_text, langlinks = get_wikipedia_article_with_tool(client, args.title, args.language)
     
     if not original_text or not langlinks:
         print(f"Error: Could not find article '{args.title}' in {args.language}")
@@ -246,60 +508,54 @@ def main():
     
     print(f"Found article with {len(langlinks)} translations")
     
-    translations = get_all_translations(langlinks) + [(args.language, args.title)]
-
-    print(f"Step 2: Retrieving content of translated articles...")
-    translation_content = get_translation_content(translations)
+    # Select most relevant languages using Claude
+    print(f"Step 2: Selecting the most relevant languages for this topic...")
+    relevant_languages = select_relevant_languages(
+        client, 
+        args.title, 
+        args.language, 
+        langlinks, 
+        max_translations=args.max_translations
+    )
     
-    # Convert dictionary to sorted list of tuples by content length
-    content_with_length = [(lang, content) for lang, content in translation_content.items() if content is not None]
-    sorted_by_length = sorted(content_with_length, key=lambda x: len(x[1]), reverse=True)
+    # Create a list of (language, title) tuples for selected languages
+    translations = []
+    for lang_link in langlinks:
+        if lang_link["language"] in relevant_languages:
+            translations.append((lang_link["language"], lang_link["title"]))
     
-    # Print top 5 longest languages
-    if sorted_by_length:
-        print(f"Top 5 longest languages: {[lang for lang, _ in sorted_by_length[:5]]}")
+    # Add the source language
+    translations.append((args.language, args.title))
     
-    # Limit translations to max_translations
-    if len(sorted_by_length) > args.max_translations:
-        # Check if source language is in top articles by length
-        source_lang_in_top = any(lang == args.language for lang, _ in sorted_by_length[:args.max_translations])
-        
-        if not source_lang_in_top and original_text:
-            # If source language not in top articles, replace the last one with source language
-            selected_translations = sorted_by_length[:args.max_translations-1]
-            # Add source language to selected translations
-            selected_translations.append((args.language, original_text))
-        else:
-            # If source language already in top articles, just use top n
-            selected_translations = sorted_by_length[:args.max_translations]
-    else:
-        selected_translations = sorted_by_length
-        
-        # Make sure source language is included if not already
-        if not any(lang == args.language for lang, _ in selected_translations) and original_text:
-            selected_translations.append((args.language, original_text))
+    print(f"Step 3: Retrieving content of translated articles...")
+    translation_content = get_translation_content_with_tool(client, translations)
     
-    print(f"Step 3: Translating articles to {args.language}...")
+    print(f"Step 4: Translating articles in parallel (using {args.threads} threads)...")
     translated_articles = {}
     
     # Add the original language version first
     translated_articles[args.language] = original_text
     
-    # Translate each article
-    for lang, content in selected_translations:
-        if lang != args.language:  # Skip translating source language
-            print(f"  Translating from {lang} to {args.language}...")
-            translated = translate_with_claude(content, lang, args.language)
-            if not translated.startswith("Translation failed:"):
-                translated_articles[lang] = translated
-            else:
-                print(f"  Warning: {translated}")
-            
-            # Add a short delay to avoid rate limits
-            time.sleep(1)
+    # Prepare arguments for parallel processing
+    translation_args = []
+    for lang, content in translation_content.items():
+        if lang != args.language:  # Skip source language
+            translation_args.append((client, content, lang, args.language, lang))
     
-    print(f"Step 4: Synthesizing {len(translated_articles)} articles...")
-    synthesized_article = synthesize_with_claude(translated_articles, args.language, args.title)
+    # Use ThreadPool for parallel translations
+    from multiprocessing.dummy import Pool as ThreadPool
+    
+    with ThreadPool(args.threads) as pool:
+        # Map worker function to arguments
+        results = pool.map(translate_article_worker, translation_args)
+        
+        # Process results
+        for lang, translated in results:
+            if translated is not None:
+                translated_articles[lang] = translated
+    
+    print(f"Step 5: Synthesizing {len(translated_articles)} articles...")
+    synthesized_article = synthesize_with_claude(client, translated_articles, args.language, args.title)
     
     if synthesized_article.startswith("Synthesis failed:"):
         print(f"Error: {synthesized_article}")
