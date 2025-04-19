@@ -149,7 +149,7 @@ def search_wikipedia(title: str, language: str, page: int = 0) -> Dict[str, Any]
         "url": wiki_page.fullurl
     }
 
-def get_wikipedia_article_with_tool(title: str, language: str) -> Tuple[Optional[str], Optional[List[Dict]]]:
+def get_wikipedia_article_with_tool(title: str, language: str, first_article: bool = False) -> Tuple[Optional[str], Optional[List[Dict]]]:
     """
     Retrieves a Wikipedia article using the search_wikipedia tool.
     
@@ -157,7 +157,7 @@ def get_wikipedia_article_with_tool(title: str, language: str) -> Tuple[Optional
         client: Anthropic client
         title: The title of the Wikipedia article
         language: The language code
-        
+        first_article: Flag to indicate if this is the first article retrieval
     Returns:
         Tuple containing article text and language links if successful, else (None, None)
     """
@@ -167,8 +167,33 @@ def get_wikipedia_article_with_tool(title: str, language: str) -> Tuple[Optional
     
     while True:
         try:
-            result = search_wikipedia(title, language, current_page)
+            # For the first article, if it doesn't exist in the requested language,
+            # try to find it in any available language
             
+            if first_article:
+                result = search_wikipedia(title, language, current_page)
+                if not result["found"]:
+                    print(f"Article not found in {language}. Trying to find it in another language...")
+                    # Try some common languages or iterate through several options
+                    for fallback_lang in ["en", "es", "fr", "de", "ru", "zh", "ja"]:
+                        if fallback_lang == language:
+                            continue
+                        fallback_result = search_wikipedia(title, fallback_lang, 0)
+                        if fallback_result["found"]:
+                            print(f"Found article in {fallback_lang} instead")
+                            language = fallback_lang  # Update language for future pages
+                            result = fallback_result
+                            break
+                    else:
+                        print(f"Could not find article in any language")
+                        return None, None
+                # Now that we have a result, don't skip to next iteration
+                first_article = False  # Don't run this logic again
+            else:
+                result = search_wikipedia(title, language, current_page)
+            
+            
+
             if not result["found"]:
                 print(f"Article not found: {result.get('error', 'Unknown error')}")
                 return None, None

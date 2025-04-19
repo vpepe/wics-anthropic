@@ -93,7 +93,7 @@ def process_job(job_id, title, language, max_translations):
         
         # Step 1: Get the original article
         jobs[job_id]['progress'] = 10
-        original_text, langlinks = backend.get_wikipedia_article_with_tool(title, language)
+        original_text, langlinks = backend.get_wikipedia_article_with_tool(title, language, True)
         
         if not original_text or not langlinks:
             raise Exception(f"Could not find article '{title}' in {language}")
