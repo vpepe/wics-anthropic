@@ -149,7 +149,7 @@ def search_wikipedia(title: str, language: str, page: int = 0) -> Dict[str, Any]
         "url": wiki_page.fullurl
     }
 
-def get_wikipedia_article_with_tool(client: Anthropic, title: str, language: str) -> Tuple[Optional[str], Optional[List[Dict]]]:
+def get_wikipedia_article_with_tool(title: str, language: str) -> Tuple[Optional[str], Optional[List[Dict]]]:
     """
     Retrieves a Wikipedia article using the search_wikipedia tool.
     

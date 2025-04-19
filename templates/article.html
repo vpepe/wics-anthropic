@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Wik-\cup-pedia</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body class="bg-white">
+    <header class="bg-gray-900 text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="{{ url_for('index') }}" class="text-2xl font-serif">Wik-\cup-pedia</a>
+            <div class="flex items-center space-x-4">
+                <span>
+                    {% for lang in languages %}
+                        {% if lang.code == language %}
+                            {{ lang.name }}
+                        {% endif %}
+                    {% endfor %}
+                </span>
+                <a href="{{ url_for('index') }}" class="bg-blue-600 hover:bg-blue-700 px-4 py-1 rounded">
+                    New Search
+                </a>
+            </div>
+        </div>
+    </header>
+    
+    <main class="container mx-auto p-6">
+        <div class="wiki-header border-b pb-4 mb-6">
+            <div class="flex justify-between items-end">
+                <div>
+                    <span class="text-gray-500 text-sm">From Wik-\cup-pedia, the synthesized encyclopedia</span>
+                </div>
+                <div class="flex space-x-4 text-sm">
+                    <button class="text-blue-600 hover:underline">Read</button>
+                    <button class="text-blue-600 hover:underline">View source</button>
+                    <button class="text-blue-600 hover:underline">View history</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap">
+            <div class="w-full lg:w-3/4 lg:pr-8">
+                <article class="wiki-content prose max-w-none" id="articleContent">
+                    <!-- Article content will be inserted here via JavaScript -->
+                </article>
+            </div>
+            
+            <aside class="w-full lg:w-1/4 mt-8 lg:mt-0">
+                <div class="sticky top-4">
+                    <div class="bg-gray-100 p-4 rounded mb-6" id="tocContainer">
+                        <h4 class="text-lg font-medium mb-2">Contents</h4>
+                        <nav class="toc">
+                            <ol class="list-none pl-0" id="tocList">
+                                <!-- Table of contents will be inserted here -->
+                            </ol>
+                        </nav>
+                    </div>
+                    
+                    <div class="bg-gray-100 p-4 rounded mb-6">
+                        <h4 class="text-lg font-medium mb-2">Article Information</h4>
+                        <p class="text-sm mb-3">
+                            This article was synthesized from {{ max_translations }} different language versions of Wikipedia.
+                        </p>
+                        
+                        <h5 class="font-medium mb-1 text-sm">Languages selected by AI:</h5>
+                        <ul class="list-disc pl-5 mb-4 text-sm">
+                            {% for lang in languages[:max_translations] %}
+                            <li>{{ lang.name }}</li>
+                            {% endfor %}
+                        </ul>
+                        
+                        <div class="text-xs text-gray-600">
+                            <div class="mb-1">
+                                Synthesized on: {{ now.strftime('%Y-%m-%d %H:%M') }}
+                            </div>
+                            <div>
+                                Powered by Wik-\cup-pedia & Claude API
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-100 p-4 rounded">
+                        <h4 class="text-lg font-medium mb-2">How This Works</h4>
+                        <ol class="text-sm list-decimal pl-5">
+                            <li class="mb-2">Our AI identifies the most relevant language editions for your topic</li>
+                            <li class="mb-2">Each language edition is translated to your preferred language</li>
+                            <li class="mb-2">All versions are analyzed and synthesized into a single comprehensive article</li>
+                            <li class="mb-2">Information unique to specific languages is preserved and integrated</li>
+                        </ol>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </main>
+    
+    <footer class="bg-gray-100 py-4 border-t">
+        <div class="container mx-auto px-6 text-center text-gray-500 text-sm">
+            <p>Wik-\cup-pedia combines multiple Wikipedia language editions for more comprehensive information</p>
+            <p class="mt-1">Not affiliated with Wikipedia or the Wikimedia Foundation</p>
+        </div>
+    </footer>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get the article content and parse any markdown
+            const markdownContent = `{{ article|safe }}`;
+            renderMarkdown(markdownContent);
+        });
+        
+        // Simple function to convert markdown to HTML
+        function renderMarkdown(markdown) {
+            // Basic conversion of markdown to HTML
+            let html = markdown
+                // Replace markdown headers with HTML headers
+                .replace(/^# (.*$)/gm, '<h1 id="$1">$1</h1>')
+                .replace(/^## (.*$)/gm, '<h2 id="$1">$1</h2>')
+                .replace(/^### (.*$)/gm, '<h3 id="$1">$1</h3>')
+                .replace(/^#### (.*$)/gm, '<h4 id="$1">$1</h4>')
+                // Bold and italic
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                // Lists
+                .replace(/^\* (.*$)/gm, '<ul><li>$1</li></ul>')
+                .replace(/^- (.*$)/gm, '<ul><li>$1</li></ul>')
+                .replace(/^(\d+)\. (.*$)/gm, '<ol><li>$2</li></ol>')
+                // Links
+                .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>')
+                // Paragraphs (double newlines)
+                .replace(/\n\n/g, '</p><p>');
+            
+            // Combine consecutive list items
+            html = html
+                .replace(/<\/ul>\s*<ul>/g, '')
+                .replace(/<\/ol>\s*<ol>/g, '');
+            
+            // Wrap in paragraph if it doesn't start with a heading
+            if (!html.startsWith('<h')) {
+                html = '<p>' + html;
+            }
+            
+            // Make sure it ends with a closing paragraph if needed
+            if (!html.endsWith('</h1>') && !html.endsWith('</h2>') && 
+                !html.endsWith('</h3>') && !html.endsWith('</h4>') && 
+                !html.endsWith('</p>')) {
+                html += '</p>';
+            }
+            
+            // Insert the HTML content
+            document.getElementById('articleContent').innerHTML = html;
+            
+            // Generate the table of contents
+            generateTableOfContents();
+        }
+        
+        // Generate a table of contents from the headers
+        function generateTableOfContents() {
+            const headers = document.querySelectorAll('#articleContent h1, #articleContent h2, #articleContent h3');
+            const tocList = document.getElementById('tocList');
+            
+            // Hide TOC if there are too few headers
+            if (headers.length < 3) {
+                document.getElementById('tocContainer').style.display = 'none';
+                return;
+            }
+            
+            // Generate TOC items
+            headers.forEach((header, index) => {
+                const level = parseInt(header.tagName.substring(1));
+                const text = header.textContent;
+                
+                // Create an ID if the header doesn't have one
+                if (!header.id) {
+                    header.id = 'section-' + index;
+                }
+                
+                // Create TOC item
+                const listItem = document.createElement('li');
+                listItem.className = `toc-level-${level}`;
+                if (level > 1) {
+                    listItem.style.paddingLeft = `${(level - 1) * 16}px`;
+                }
+                
+                const link = document.createElement('a');
+                link.href = `#${header.id}`;
+                link.textContent = text;
+                link.className = 'text-blue-600 hover:underline';
+                
+                listItem.appendChild(link);
+                tocList.appendChild(listItem);
+            });
+        }
+    </script>
+</body>
+</html>

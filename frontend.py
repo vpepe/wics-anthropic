@@ -1,15 +1,29 @@
+#!/usr/bin/env python3
+"""
+Frontend for Wikipedia Synthesizer
+
+This Flask application provides a web interface for the Wikipedia Synthesizer
+that combines articles from different languages.
+"""
+
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
-import backend  # Import your existing backend.py
+import backend  # Import your updated backend.py
+from anthropic import Anthropic
 import os
 import uuid
 import threading
 import time
+import datetime
 
+# Initialize Flask app
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # For session management
 
 # In-memory storage for jobs (would use a database in production)
 jobs = {}
+
+# Create Anthropic client
+client = Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
 
 @app.route('/')
 def index():
@@ -47,6 +61,7 @@ def search():
     
     # Initialize job
     jobs[job_id] = {
+        'id': job_id,
         'title': title,
         'language': language,
         'max_translations': max_translations,
@@ -73,40 +88,70 @@ def process_job(job_id, title, language, max_translations):
         # Update job status
         jobs[job_id]['status'] = 'processing'
         
-        # Call your backend functions here
-        # This is a simplified version - you'll need to update this
-        # based on your actual backend.py functions
-        
         # Step 1: Get the original article
         jobs[job_id]['progress'] = 10
-        original_text, langlinks = backend.get_wikipedia_article(title, language)
+        original_text, langlinks = backend.get_wikipedia_article_with_tool(title, language)
         
         if not original_text or not langlinks:
             raise Exception(f"Could not find article '{title}' in {language}")
         
-        # Step 2: Get translations
-        jobs[job_id]['progress'] = 30
-        translations = backend.get_all_translations(langlinks) + [(language, title)]
-        translation_content = backend.get_translation_content(translations)
-        
-        # Step 3: Translate articles
-        jobs[job_id]['progress'] = 50
-        translated_articles = {language: original_text}
-        
-        for lang, content in translation_content.items():
-            if lang != language and content:
-                translated = backend.translate_with_claude(content, lang, language)
-                if not translated.startswith("Translation failed:"):
-                    translated_articles[lang] = translated
-                # Update progress incrementally
-                progress_increment = 30 / len(translation_content)
-                jobs[job_id]['progress'] = min(80, jobs[job_id]['progress'] + progress_increment)
-        
-        # Step 4: Synthesize
-        jobs[job_id]['progress'] = 90
-        synthesized_article = backend.synthesize_with_claude(
-            translated_articles, language, title
+        # Step 2: Select relevant languages
+        jobs[job_id]['progress'] = 20
+        relevant_languages = backend.select_relevant_languages(
+            client, 
+            title, 
+            language, 
+            langlinks, 
+            max_translations=max_translations
         )
+        
+        # Create a list of tuples for selected languages
+        translations = []
+        for lang_link in langlinks:
+            if lang_link["language"] in relevant_languages:
+                translations.append((lang_link["language"], lang_link["title"]))
+        
+        # Add the source language
+        translations.append((language, title))
+        
+        # Step 3: Get translation content
+        jobs[job_id]['progress'] = 30
+        translation_content = backend.get_translation_content_with_tool(client, translations)
+        
+        # Step 4: Translate articles
+        jobs[job_id]['progress'] = 40
+        translated_articles = {}
+        
+        # Add the original language version first
+        translated_articles[language] = original_text
+        
+        # Prepare arguments for parallel processing
+        translation_args = []
+        for lang, content in translation_content.items():
+            if lang != language:  # Skip source language
+                translation_args.append((client, content, lang, language, lang))
+        
+        # Use backend's parallel translation (or adapt to process one at a time)
+        with backend.ThreadPool(min(10, len(translation_args))) as pool:
+            # Map worker function to arguments
+            results = pool.map(backend.translate_article_worker, translation_args)
+            
+            # Process results and update progress incrementally
+            for i, (lang, translated) in enumerate(results):
+                progress_increment = 30 / len(translation_args)
+                jobs[job_id]['progress'] = min(70, 40 + int((i+1) * progress_increment))
+                
+                if translated is not None:
+                    translated_articles[lang] = translated
+        
+        # Step 5: Synthesize
+        jobs[job_id]['progress'] = 80
+        synthesized_article = backend.synthesize_with_claude(
+            client, translated_articles, language, title
+        )
+        
+        if synthesized_article.startswith("Synthesis failed:"):
+            raise Exception(synthesized_article)
         
         # Update job with result
         jobs[job_id]['status'] = 'completed'
@@ -130,7 +175,7 @@ def update_recent_articles(title, language):
     new_article = {
         'title': title,
         'language': language,
-        'date': time.strftime('%Y-%m-%d %H:%M:%S')
+        'date': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
     
     # Remove duplicates
@@ -172,12 +217,26 @@ def article(job_id):
         return redirect(url_for('index'))
     
     job = jobs[job_id]
+    languages = [
+        {"code": "en", "name": "English"},
+        {"code": "ja", "name": "日本語"},
+        {"code": "ru", "name": "Русский"},
+        {"code": "de", "name": "Deutsch"},
+        {"code": "es", "name": "Español"},
+        {"code": "fr", "name": "Français"},
+        {"code": "zh", "name": "中文"},
+        {"code": "it", "name": "Italiano"},
+        {"code": "pt", "name": "Português"},
+        {"code": "pl", "name": "Polski"},
+    ]
     
     return render_template('article.html', 
                           article=job['result'], 
                           title=job['title'],
                           language=job['language'],
-                          max_translations=job['max_translations'])
+                          max_translations=job['max_translations'],
+                          now=datetime.datetime.now(),
+                          languages=languages)
 
 if __name__ == '__main__':
     app.run(debug=True)

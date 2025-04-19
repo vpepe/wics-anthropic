@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wik-\cup-pedia</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body class="bg-gray-900 text-white">
+    <div class="container mx-auto px-4 py-8">
+        <div class="text-center mb-8">
+            <h1 class="text-5xl font-serif mb-2">Wik-\cup-pedia</h1>
+            <h2 class="text-2xl font-serif">The Synthesized Encyclopedia</h2>
+        </div>
+        
+        <form action="{{ url_for('search') }}" method="post" class="mb-8">
+            <div class="language-grid mb-8">
+                {% for lang in languages %}
+                <button 
+                    type="button"
+                    class="language-button {% if lang.code == 'en' %}active{% endif %}"
+                    data-lang="{{ lang.code }}"
+                    onclick="selectLanguage('{{ lang.code }}')">
+                    <span class="lang-name">{{ lang.name }}</span>
+                    <span class="lang-count">{{ lang.count }}</span>
+                </button>
+                {% endfor %}
+            </div>
+            
+            <input type="hidden" name="language" id="selectedLanguage" value="en">
+            
+            <div class="search-bar">
+                <input 
+                    type="text" 
+                    name="title" 
+                    placeholder="Enter article title..." 
+                    required
+                    class="search-input">
+                <button type="submit" class="search-button">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="max-translations mt-4">
+                <label for="max_translations">Max translations:</label>
+                <select name="max_translations" id="max_translations" class="select-input">
+                    <option value="3">3</option>
+                    <option value="5" selected>5</option>
+                    <option value="7">7</option>
+                    <option value="10">10</option>
+                </select>
+                <span class="text-sm text-gray-400 ml-4">Higher values provide more comprehensive articles but take longer to generate</span>
+            </div>
+            
+            <div class="features-box mt-6 bg-gray-800 p-4 rounded">
+                <h3 class="text-lg font-medium mb-2">✨ New Features</h3>
+                <ul class="list-disc pl-5 text-gray-300">
+                    <li>AI-powered language selection chooses the most relevant language editions for your topic</li>
+                    <li>Parallel processing for faster article synthesis</li>
+                    <li>Improved article structure and organization</li>
+                </ul>
+            </div>
+        </form>
+        
+        {% if recent_articles %}
+        <div class="recent-articles">
+            <h3 class="text-xl font-semibold mb-3">Recent Articles</h3>
+            <div class="recent-grid">
+                {% for article in recent_articles %}
+                <div class="recent-item">
+                    <form action="{{ url_for('search') }}" method="post">
+                        <input type="hidden" name="title" value="{{ article.title }}">
+                        <input type="hidden" name="language" value="{{ article.language }}">
+                        <input type="hidden" name="max_translations" value="5">
+                        <button type="submit" class="w-full text-left">
+                            <div class="font-medium">{{ article.title }}</div>
+                            <div class="text-sm text-gray-300 flex justify-between">
+                                <span>
+                                    {% for lang in languages %}
+                                        {% if lang.code == article.language %}
+                                            {{ lang.name }}
+                                        {% endif %}
+                                    {% endfor %}
+                                </span>
+                                <span>{{ article.date }}</span>
+                            </div>
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="text-center mt-8 text-gray-400 text-sm">
+            <p>Powered by Wikipedia and Claude API</p>
+            <p class="mt-1">Synthesizes articles from multiple language versions for a more comprehensive view</p>
+        </div>
+    </div>
+    
+    <script>
+        function selectLanguage(langCode) {
+            // Update hidden input
+            document.getElementById('selectedLanguage').value = langCode;
+            
+            // Update active button styling
+            const buttons = document.querySelectorAll('.language-button');
+            buttons.forEach(button => {
+                if (button.dataset.lang === langCode) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
