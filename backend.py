@@ -20,10 +20,16 @@ from typing import Dict, List, Optional, Tuple, Any, Union
 import wikipediaapi
 from multiprocessing.dummy import Pool as ThreadPool
 from anthropic import Anthropic
+import hashlib
+import pathlib
 
 # Claude API information
 CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
 CLAUDE_MODEL = "claude-3-7-sonnet-latest"
+
+# Define cache directory
+CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
+os.makedirs(CACHE_DIR, exist_ok=True)
 
 # Define the search_wikipedia tool
 SEARCH_WIKIPEDIA_TOOL = {
@@ -502,6 +508,83 @@ def translate_article_worker(args):
     
     return lang, translated
 
+def get_cache_key(title: str, language: str, max_translations: int) -> str:
+    """
+    Generate a unique cache key for an article request.
+    
+    Args:
+        title: Article title
+        language: Target language code
+        max_translations: Maximum number of translations
+        
+    Returns:
+        Cache key string
+    """
+    # Create a string that uniquely identifies this request
+    cache_str = f"{title.lower()}_{language}_{max_translations}"
+    
+    # Hash it to create a filename-safe string
+    return hashlib.md5(cache_str.encode('utf-8')).hexdigest()
+
+def get_cache_path(cache_key: str) -> str:
+    """
+    Get the filesystem path for a cached article.
+    
+    Args:
+        cache_key: Cache key string
+        
+    Returns:
+        Path to the cached HTML file
+    """
+    return os.path.join(CACHE_DIR, f"{cache_key}.html")
+
+def check_cache(title: str, language: str, max_translations: int) -> Optional[str]:
+    """
+    Check if an article is in the cache.
+    
+    Args:
+        title: Article title
+        language: Target language code
+        max_translations: Maximum number of translations
+        
+    Returns:
+        Path to cached file if it exists, None otherwise
+    """
+    cache_key = get_cache_key(title, language, max_translations)
+    cache_path = get_cache_path(cache_key)
+    
+    if os.path.exists(cache_path):
+        print(f"Cache hit: {cache_path}")
+        return cache_path
+    
+    return None
+
+def save_to_cache(title: str, language: str, max_translations: int, html_content: str) -> str:
+    """
+    Save an article to the cache.
+    
+    Args:
+        title: Article title
+        language: Target language code
+        max_translations: Maximum number of translations
+        html_content: HTML content to cache
+        
+    Returns:
+        Path to the cached file
+    """
+    cache_key = get_cache_key(title, language, max_translations)
+    cache_path = get_cache_path(cache_key)
+    
+    # Create cache directory if it doesn't exist
+    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+    
+    # Write the HTML content to the cache file
+    with open(cache_path, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+    
+    print(f"Saved to cache: {cache_path}")
+    return cache_path
+
 def main():
     """Main function to run the Wikipedia article synthesizer."""
     parser = argparse.ArgumentParser(description='Synthesize Wikipedia articles from different languages')
@@ -513,6 +596,8 @@ def main():
     parser.add_argument('--api_key', help='Claude API key (optional, overrides default)')
     parser.add_argument('--threads', type=int, default=10,
                         help='Number of parallel threads for translation (default: 10)')
+    parser.add_argument('--no-cache', action='store_true',
+                        help='Disable caching (always generate fresh content)')
     
     args = parser.parse_args()
     
@@ -521,11 +606,33 @@ def main():
     if args.api_key:
         CLAUDE_API_KEY = args.api_key
     
+    # Check cache first unless no-cache is specified
+    if not args.no_cache:
+        cached_path = check_cache(args.title, args.language, args.max_translations)
+        if cached_path:
+            print(f"Using cached version from {cached_path}")
+            
+            if args.output:
+                # Copy cache file to output if specified
+                import shutil
+                shutil.copy2(cached_path, args.output)
+                print(f"Copied to {args.output}")
+                
+            else:
+                # Print the cached content
+                with open(cached_path, 'r', encoding='utf-8') as f:
+                    print("\nCACHED ARTICLE:")
+                    print("=" * 80)
+                    print(f.read())
+                    print("=" * 80)
+                    
+            return
+    
     # Create Anthropic client
     client = Anthropic(api_key=CLAUDE_API_KEY)
     
     print(f"Step 1: Retrieving article '{args.title}' in {args.language}...")
-    original_text, langlinks = get_wikipedia_article_with_tool(client, args.title, args.language)
+    original_text, langlinks = get_wikipedia_article_with_tool(args.title, args.language)
     
     if not original_text or not langlinks:
         print(f"Error: Could not find article '{args.title}' in {args.language}")
@@ -585,6 +692,9 @@ def main():
     if synthesized_article.startswith("Synthesis failed:"):
         print(f"Error: {synthesized_article}")
         return
+    
+    # Save to cache
+    cache_path = save_to_cache(args.title, args.language, args.max_translations, synthesized_article)
     
     if args.output:
         with open(args.output, 'w', encoding='utf-8') as f:

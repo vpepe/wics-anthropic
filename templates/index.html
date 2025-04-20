@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wik-\cup-pedia</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <!-- No need for inline styles since they're now in the external CSS file -->
 </head>
 <body class="bg-gray-900 text-white">
     <div class="container mx-auto px-4 py-8">
@@ -16,6 +17,8 @@
         <form action="{{ url_for('search') }}" method="post" class="mb-8">
             <div class="language-grid mb-8">
                 {% for lang in languages %}
+                {% if loop.index <= 9 %}
+                <!-- Regular language buttons for the first 9 languages -->
                 <button 
                     type="button"
                     class="language-button {% if lang.code == 'en' %}active{% endif %}"
@@ -24,6 +27,65 @@
                     <span class="lang-name">{{ lang.name }}</span>
                     <span class="lang-count">{{ lang.count }}</span>
                 </button>
+                {% elif loop.index == 10 %}
+                <!-- Replace the 10th button with dropdown -->
+                <div class="language-dropdown">
+                    <button 
+                        type="button"
+                        id="dropdownButton"
+                        class="language-button"
+                        onclick="toggleDropdown()">
+                        <span class="lang-name">More Languages...</span>
+                    </button>
+                    <div id="languageDropdown" class="dropdown-content">
+                        <!-- Include Portuguese as first option in dropdown -->
+                        <button 
+                            type="button"
+                            data-lang="{{ lang.code }}"
+                            onclick="selectLanguage('{{ lang.code }}')">
+                            <span>{{ lang.name }}</span>
+                        </button>
+                        
+                        <!-- Additional language options -->
+                        <button type="button" data-lang="ar" onclick="selectLanguage('ar')">
+                            <span>العربية</span>
+                        </button>
+                        <button type="button" data-lang="nl" onclick="selectLanguage('nl')">
+                            <span>Nederlands</span>
+                        </button>
+                        <button type="button" data-lang="sv" onclick="selectLanguage('sv')">
+                            <span>Svenska</span>
+                        </button>
+                        <button type="button" data-lang="uk" onclick="selectLanguage('uk')">
+                            <span>Українська</span>
+                        </button>
+                        <button type="button" data-lang="ko" onclick="selectLanguage('ko')">
+                            <span>한국어</span>
+                        </button>
+                        <button type="button" data-lang="vi" onclick="selectLanguage('vi')">
+                            <span>Tiếng Việt</span>
+                        </button>
+                        <button type="button" data-lang="fa" onclick="selectLanguage('fa')">
+                            <span>فارسی</span>
+                        </button>
+                        <button type="button" data-lang="he" onclick="selectLanguage('he')">
+                            <span>עברית</span>
+                        </button>
+                        <button type="button" data-lang="id" onclick="selectLanguage('id')">
+                            <span>Bahasa Indonesia</span>
+                        </button>
+                        <button type="button" data-lang="tr" onclick="selectLanguage('tr')">
+                            <span>Türkçe</span>
+                        </button>
+                        <button type="button" data-lang="hi" onclick="selectLanguage('hi')">
+                            <span>हिन्दी</span>
+                        </button>
+                        <button type="button" data-lang="th" onclick="selectLanguage('th')">
+                            <span>ไทย</span>
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
                 {% endfor %}
             </div>
             
@@ -52,15 +114,6 @@
                     <option value="10">10</option>
                 </select>
                 <span class="text-sm text-gray-400 ml-4">Higher values provide more comprehensive articles but take longer to generate</span>
-            </div>
-            
-            <div class="features-box mt-6 bg-gray-800 p-4 rounded">
-                <h3 class="text-lg font-medium mb-2">✨ New Features</h3>
-                <ul class="list-disc pl-5 text-gray-300">
-                    <li>AI-powered language selection chooses the most relevant language editions for your topic</li>
-                    <li>Parallel processing for faster article synthesis</li>
-                    <li>Improved article structure and organization</li>
-                </ul>
             </div>
         </form>
         
@@ -107,13 +160,50 @@
             
             // Update active button styling
             const buttons = document.querySelectorAll('.language-button');
+            const dropdownButton = document.getElementById('dropdownButton');
+            
+            // Reset all active states first
             buttons.forEach(button => {
-                if (button.dataset.lang === langCode) {
-                    button.classList.add('active');
-                } else {
-                    button.classList.remove('active');
-                }
+                button.classList.remove('active');
             });
+            dropdownButton.classList.remove('active');
+            
+            // Check if the selected language is from the main buttons
+            const mainButton = document.querySelector('.language-button[data-lang="' + langCode + '"]');
+            if (mainButton) {
+                // It's a main button, make it active
+                mainButton.classList.add('active');
+            } else {
+                // It's a dropdown option, make dropdown button active
+                dropdownButton.classList.add('active');
+                
+                // Update dropdown button text
+                const selectedButton = document.querySelector('.dropdown-content button[data-lang="' + langCode + '"]');
+                if (selectedButton) {
+                    const languageName = selectedButton.textContent.trim();
+                    dropdownButton.innerHTML = '<span class="lang-name">' + languageName + '</span>';
+                }
+            }
+            
+            // Close dropdown if open
+            document.getElementById('languageDropdown').classList.remove('show');
+        }
+        
+        function toggleDropdown() {
+            document.getElementById('languageDropdown').classList.toggle('show');
+        }
+        
+        // Close the dropdown if clicked outside
+        window.onclick = function(event) {
+            if (!event.target.matches('#dropdownButton') && !event.target.closest('#dropdownButton')) {
+                const dropdowns = document.getElementsByClassName('dropdown-content');
+                for (let i = 0; i < dropdowns.length; i++) {
+                    const openDropdown = dropdowns[i];
+                    if (openDropdown.classList.contains('show')) {
+                        openDropdown.classList.remove('show');
+                    }
+                }
+            }
         }
     </script>
 </body>
