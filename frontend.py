@@ -29,17 +29,17 @@ client = Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
 def index():
     """Render the search page"""
     languages = [
-        {"code": "en", "name": "English", "count": "6,974,000+ articles"},
-        {"code": "ja", "name": "日本語", "count": "1,457,000+ 記事"},
-        {"code": "ru", "name": "Русский", "count": "2,036,000+ статей"},
-        {"code": "de", "name": "Deutsch", "count": "3,001,000+ Artikel"},
-        {"code": "es", "name": "Español", "count": "2,021,000+ artículos"},
-        {"code": "fr", "name": "Français", "count": "2,674,000+ articles"},
-        {"code": "zh", "name": "中文", "count": "1,470,000+ 条目 / 條目"},
-        {"code": "it", "name": "Italiano", "count": "1,910,000+ voci"},
-        {"code": "pt", "name": "Português", "count": "1,146,000+ artigos"},
-        {"code": "pl", "name": "Polski", "count": "1,652,000+ haseł"},
-    ]
+  {"code": "en", "name": "English", "count": "Synthesize an article"},
+  {"code": "ja", "name": "日本語", "count": "記事を合成する"},
+  {"code": "ru", "name": "Русский", "count": "Синтезировать статью"},
+  {"code": "de", "name": "Deutsch", "count": "Artikel synthetisieren"},
+  {"code": "es", "name": "Español", "count": "Sintetizar un artículo"},
+  {"code": "fr", "name": "Français", "count": "Synthétiser un article"},
+  {"code": "zh", "name": "中文", "count": "综合文章"},
+  {"code": "it", "name": "Italiano", "count": "Sintetizzare un articolo"},
+  {"code": "pt", "name": "Português", "count": "Sintetizar um artigo"},
+  {"code": "pl", "name": "Polski", "count": "Zsyntetyzuj artykuł"}
+]
     
     # Update the session with recent articles
     update_recent_articles_in_session()
