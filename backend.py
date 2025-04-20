@@ -23,6 +23,51 @@ from anthropic import Anthropic
 import hashlib
 import pathlib
 
+
+LANGUAGE_SELECTION_PROMPT = (lambda title, max_translations, source_lang, lang_options_text :f"""I need your help selecting the most relevant languages for Wikipedia articles about "{title}".
+
+Given the topic "{title}", which {max_translations} languages would likely have the most unique, comprehensive, 
+or culturally significant information about this topic? I need you to select languages that would provide diverse 
+perspectives and complementary information, not just the languages with the longest articles.
+
+Here are the available language options (language code: article title in that language):
+{lang_options_text}
+
+Choose exactly {max_translations} languages (NOT including the source language {source_lang}), providing your rationale 
+for each. Be sure to include the source language. Format your response as a JSON object with an array of language codes, like this:
+{{
+  "selected_languages": ["xx", "yy", "zz", "aa", "bb"],
+  "rationale": "brief explanation of your choices"
+}}""")
+
+TRANSLATION_PROMPT = (lambda source_lang, target_lang, text: f"""Translate the following text from {source_lang} to {target_lang}. 
+Maintain the original section structure and formatting as much as possible.
+
+TEXT TO TRANSLATE:
+{text}
+
+TRANSLATION:""")
+
+SYNTHESIS_CONTEXT = (lambda original_title, articles, target_lang: f"""I have collected versions of the Wikipedia article '{original_title}' from {len(articles)} different language editions, and translated them all to {target_lang}.
+
+I will now provide each version. Your task is to synthesize these into a single comprehensive article. You should not worry about length constraints, talk for as long as you need to, since everything here is important. Remember that Wikipedia is an encyclopedia, meaning all the information here is useful for research and should be kept, at least at the conceptual level.""")
+
+SYNTHESIS_PROMPT = (lambda combined_input, target_lang: f"""{combined_input}
+
+Please combine these different Wikipedia versions into a single, comprehensive article in {target_lang}. 
+Combine information from all sources, resolve any contradictions, and create a well-structured article that 
+contains the most accurate and complete information from all language editions.
+
+The article should:
+1. Follow Wikipedia's neutral point of view
+2. Maintain a proper encyclopedic tone
+3. Include all important facts from the various language versions
+4. Be well-structured with appropriate sections and subsections
+5. Resolve any contradictory information by noting different perspectives or choosing the most reliable information
+6. Note which language's version is being referenced for each piece of information, if relevant
+
+SYNTHESIZED ARTICLE:""")
+
 # Claude API information
 CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
 CLAUDE_MODEL = "claude-3-7-sonnet-latest"
@@ -245,21 +290,7 @@ def select_relevant_languages(client: Anthropic, title: str, source_lang: str,
     lang_options = [f"{link['language']}: {link['title']}" for link in all_lang_links]
     lang_options_text = "\n".join(lang_options)
     
-    prompt = f"""I need your help selecting the most relevant languages for Wikipedia articles about "{title}".
-
-Given the topic "{title}", which {max_translations} languages would likely have the most unique, comprehensive, 
-or culturally significant information about this topic? I need you to select languages that would provide diverse 
-perspectives and complementary information, not just the languages with the longest articles.
-
-Here are the available language options (language code: article title in that language):
-{lang_options_text}
-
-Choose exactly {max_translations} languages (NOT including the source language {source_lang}), providing your rationale 
-for each. Format your response as a JSON object with an array of language codes, like this:
-{{
-  "selected_languages": ["xx", "yy", "zz", "aa", "bb"],
-  "rationale": "brief explanation of your choices"
-}}"""
+    prompt = LANGUAGE_SELECTION_PROMPT(title, max_translations, source_lang, lang_options_text)
     
     try:
         response = client.messages.create(
@@ -285,7 +316,7 @@ for each. Format your response as a JSON object with an array of language codes,
                 
                 # Make sure we got exactly the right number
                 if len(selected_languages) > max_translations:
-                    selected_languages = selected_languages[:max_translations]
+                    selected_languages = selected_languages[:max_translations]+source_lang
                 
                 print(f"Selected languages: {selected_languages}")
                 print(f"Rationale: {json_data.get('rationale', 'No rationale provided')}")
@@ -372,15 +403,9 @@ def translate_with_claude(client: Anthropic, text: str, source_lang: str, target
         return text
     
     # Limit text length to handle API constraints
-    text = text[:50000] if len(text) > 50000 else text
+    text = text[:128000] if len(text) > 128000 else text
     
-    prompt = f"""Translate the following text from {source_lang} to {target_lang}. 
-Maintain the original section structure and formatting as much as possible.
-
-TEXT TO TRANSLATE:
-{text}
-
-TRANSLATION:"""
+    prompt = TRANSLATION_PROMPT(source_lang, target_lang, text)
     
     try:
         # Use the Anthropic SDK with streaming
@@ -421,36 +446,21 @@ def synthesize_with_claude(client: Anthropic, articles: Dict[str, str], target_l
         Synthesized article
     """
     # Create a structured input for Claude
-    context = f"""I have collected versions of the Wikipedia article '{original_title}' from {len(articles)} different language editions, and translated them all to {target_lang}.
-
-I will now provide each version. Your task is to synthesize these into a single comprehensive article."""
+    context = SYNTHESIS_CONTEXT(original_title, articles, target_lang)
     
     # We need to be careful about token limits, so we'll trim the content
     article_sections = []
     
     for lang, content in articles.items():
         # Trim content to a reasonable size
-        trimmed_content = content[:15000] if len(content) > 15000 else content
+        trimmed_content = content[:128000] if len(content) > 128000 else content
         article_section = f"VERSION FROM {lang} WIKIPEDIA:\n{trimmed_content}\n\n---\n\n"
         article_sections.append(article_section)
     
     # Combine the context with article sections
     combined_input = context + "\n\n" + "".join(article_sections)
     
-    prompt = f"""{combined_input}
-
-Please synthesize these different Wikipedia versions into a single, comprehensive article in {target_lang}. 
-Combine information from all sources, resolve any contradictions, and create a well-structured article that 
-contains the most accurate and complete information from all language editions.
-
-The article should:
-1. Follow Wikipedia's neutral point of view
-2. Maintain a proper encyclopedic tone
-3. Include all important facts from the various language versions
-4. Be well-structured with appropriate sections and subsections
-5. Resolve any contradictory information by noting different perspectives or choosing the most reliable information
-
-SYNTHESIZED ARTICLE:"""
+    prompt = SYNTHESIS_PROMPT(combined_input, target_lang)
     
     try:
         # Use the Anthropic SDK with streaming
