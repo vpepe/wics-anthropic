@@ -65,14 +65,16 @@ The article should:
 4. Be well-structured with appropriate sections and subsections
 5. Resolve any contradictory information by noting different perspectives or choosing the most reliable information
 6. Note which language's version is being referenced for each piece of information, if relevant
-7. Include hyperlinks to related topics in the format `/article/language_code/article_name` (for example `/article/en/quantum_physics` or `/article/it/renaissance`). Generate links even if you're not sure whether they exist - the system will automatically create placeholder pages for non-existent articles.
+7. Include hyperlinks to related topics in the format `/article/language_code/article_name` (for example `/article/en/quantum_physics` or `/article/it/renaissance`). Generate links even if you're not sure whether they exist - the system will automatically create pages for non-existent articles. Be generous with generating links, we want the feeling of an interconnected knowledge base. 
 
 When adding hyperlinks:
+- Always generate them with the correct capitalization, e.g. "/article/en/Center_for_AI_Safety" not "/article/en/center_for_Ai_safety"
 - Link the first mention of important concepts, people, places, or events
 - Use the target language code ({target_lang}) for all links
 - Only link to other languages when referring to concepts that are particularly relevant to that language or culture
 - Format links simply using Markdown syntax: [link text](/article/language_code/article_name)
 - For article names with multiple words, replace spaces with underscores
+- For article names with parentheses, make sure they don't interfere with markdown formatting, i.e. [link text](article/language_code/article_name_(item_in_parentheses)), note the two closing parentheses
 
 SYNTHESIZED ARTICLE:""")
 
@@ -228,7 +230,8 @@ def get_wikipedia_article_with_tool(title: str, language: str, first_article: bo
         try:
             # For the first article, if it doesn't exist in the requested language,
             # try to find it in any available language
-            
+            title = title.replace("_"," ")
+            print(f"trying to find {title}")
             if first_article:
                 result = search_wikipedia(title, language, current_page)
                 if not result["found"]:
@@ -237,6 +240,7 @@ def get_wikipedia_article_with_tool(title: str, language: str, first_article: bo
                     for fallback_lang in ["en", "es", "fr", "de", "ru", "zh", "ja"]:
                         if fallback_lang == language:
                             continue
+                        print(f"Looking for {title} in fallback {fallback_lang}")
                         fallback_result = search_wikipedia(title, fallback_lang, 0)
                         if fallback_result["found"]:
                             print(f"Found article in {fallback_lang} instead")

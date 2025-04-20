@@ -367,53 +367,93 @@ def view_article(language, article_name):
     # Reconstruct the slug
     slug = f"{language}/{article_name}"
     
-    if slug not in slug_to_job:
-        # Article doesn't exist - redirect to the not_found page
-        return redirect(url_for('not_found', language=language, article_name=article_name))
+    # First check if the article is in our in-memory mapping
+    if slug in slug_to_job:
+        job_id = slug_to_job[slug]
+        if job_id in jobs and jobs[job_id]['status'] == 'completed':
+            job = jobs[job_id]
+            
+            # Define all available languages with names
+            all_languages = [
+                {"code": "en", "name": "English"},
+                {"code": "ja", "name": "日本語"},
+                {"code": "ru", "name": "Русский"},
+                {"code": "de", "name": "Deutsch"},
+                {"code": "es", "name": "Español"},
+                {"code": "fr", "name": "Français"},
+                {"code": "zh", "name": "中文"},
+                {"code": "it", "name": "Italiano"},
+                {"code": "pt", "name": "Português"},
+                {"code": "pl", "name": "Polski"},
+            ]
+            
+            # Get the selected languages from the job if available
+            selected_languages = job.get('selected_languages', [])
+            
+            # Update recent articles in session when viewing an article
+            update_recent_articles_in_session()
+            
+            # Get cache information
+            from_cache = job.get('article_info', {}).get('from_cache', False)
+            cache_path = job.get('article_info', {}).get('cache_path', None)
+            
+            return render_template('article.html', 
+                                  article=job['result'], 
+                                  title=job['title'],
+                                  language=job['language'],
+                                  max_translations=job['max_translations'],
+                                  now=datetime.datetime.now(),
+                                  languages=all_languages,
+                                  all_languages=all_languages,
+                                  selected_languages=selected_languages,
+                                  from_cache=from_cache,
+                                  cache_path=cache_path,
+                                  article_name=article_name,
+                                  job_id=job_id)
+        elif job_id in jobs:
+            # Job exists but isn't completed
+            return redirect(url_for('article_status', language=language, article_name=article_name))
     
-    job_id = slug_to_job[slug]
-    if job_id not in jobs or jobs[job_id]['status'] != 'completed':
-        return redirect(url_for('article_status', language=language, article_name=article_name))
+    # If we get here, the article isn't in our in-memory mapping
+    # Check if it exists in the cache directly
+    article_title = article_name.replace('-', ' ').title()
+    cache_key = backend.get_cache_key(article_title, language, 5)  # Use default 5 translations
+    cache_path = backend.get_cache_path(cache_key)
     
-    job = jobs[job_id]
+    if os.path.exists(cache_path):
+        # Found in cache! Create a job for it
+        job_id = str(uuid.uuid4())
+        with open(cache_path, 'r', encoding='utf-8') as f:
+            cached_content = f.read()
+        
+        # Create a job entry for this cached article
+        jobs[job_id] = {
+            'id': job_id,
+            'slug': slug,
+            'title': article_title,
+            'language': language,
+            'max_translations': 5,  # Default
+            'status': 'completed',
+            'progress': 100,
+            'result': cached_content,
+            'error': None,
+            'article_info': {
+                'title': article_title,
+                'language': language,
+                'date': datetime.datetime.fromtimestamp(os.path.getmtime(cache_path)).strftime('%Y-%m-%d %H:%M:%S'),
+                'from_cache': True,
+                'cache_path': cache_path
+            }
+        }
+        
+        # Update the mapping
+        slug_to_job[slug] = job_id
+        
+        # Redirect to ourselves to use the normal view path now that the job exists
+        return redirect(url_for('view_article', language=language, article_name=article_name))
     
-    # Define all available languages with names
-    all_languages = [
-        {"code": "en", "name": "English"},
-        {"code": "ja", "name": "日本語"},
-        {"code": "ru", "name": "Русский"},
-        {"code": "de", "name": "Deutsch"},
-        {"code": "es", "name": "Español"},
-        {"code": "fr", "name": "Français"},
-        {"code": "zh", "name": "中文"},
-        {"code": "it", "name": "Italiano"},
-        {"code": "pt", "name": "Português"},
-        {"code": "pl", "name": "Polski"},
-    ]
-    
-    # Get the selected languages from the job if available
-    selected_languages = job.get('selected_languages', [])
-    
-    # Update recent articles in session when viewing an article
-    update_recent_articles_in_session()
-    
-    # Get cache information
-    from_cache = job.get('article_info', {}).get('from_cache', False)
-    cache_path = job.get('article_info', {}).get('cache_path', None)
-    
-    return render_template('article.html', 
-                          article=job['result'], 
-                          title=job['title'],
-                          language=job['language'],
-                          max_translations=job['max_translations'],
-                          now=datetime.datetime.now(),
-                          languages=all_languages,
-                          all_languages=all_languages,
-                          selected_languages=selected_languages,
-                          from_cache=from_cache,
-                          cache_path=cache_path,
-                          article_name=article_name,
-                          job_id=job_id)  # Keep job_id for backward compatibility
+    # If we get here, the article really doesn't exist
+    return redirect(url_for('not_found', language=language, article_name=article_name))
 
 # Legacy route for job_id-based article viewing (for backward compatibility)
 @app.route('/article_by_id/<job_id>')
