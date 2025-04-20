@@ -74,7 +74,7 @@ When adding hyperlinks:
 - Only link to other languages when referring to concepts that are particularly relevant to that language or culture
 - Format links simply using Markdown syntax: [link text](/article/language_code/article_name)
 - For article names with multiple words, replace spaces with underscores
-- For article names with parentheses, make sure they don't interfere with markdown formatting, i.e. [link text](article/language_code/article_name_(item_in_parentheses)), note the two closing parentheses
+- For article names with parentheses, make sure they don't interfere with markdown formatting, i.e. [link text](article/language_code/article_name_(item_in_parentheses)), note the two closing parentheses.
 
 SYNTHESIZED ARTICLE:""")
 
@@ -210,9 +210,18 @@ def search_wikipedia(title: str, language: str, page: int = 0) -> Dict[str, Any]
         "url": wiki_page.fullurl
     }
 
-def get_wikipedia_article_with_tool(title: str, language: str, first_article: bool = False) -> Tuple[Optional[str], Optional[List[Dict]]]:
+"""
+Modifications to backend.py to integrate fuzzy search.
+This shows the changes needed - you'll need to include these in your backend.py file.
+"""
+
+# Import the new fuzzy search functionality 
+from wikipedia_fuzzy_search import perform_fuzzy_search, evaluate_search_results, get_wikipedia_article_with_fuzzy_search
+
+# Replace the existing get_wikipedia_article_with_tool function with the fuzzy search version
+def get_wikipedia_article_with_tool(client, title: str, language: str, first_article: bool = False) -> Tuple[Optional[str], Optional[List[Dict]]]:
     """
-    Retrieves a Wikipedia article using the search_wikipedia tool.
+    Retrieves a Wikipedia article using fuzzy search when needed.
     
     Args:
         client: Anthropic client
@@ -222,66 +231,7 @@ def get_wikipedia_article_with_tool(title: str, language: str, first_article: bo
     Returns:
         Tuple containing article text and language links if successful, else (None, None)
     """
-    full_text = ""
-    current_page = 0
-    langlinks = None
-    
-    while True:
-        try:
-            # For the first article, if it doesn't exist in the requested language,
-            # try to find it in any available language
-            title = title.replace("_"," ")
-            print(f"trying to find {title}")
-            if first_article:
-                result = search_wikipedia(title, language, current_page)
-                if not result["found"]:
-                    print(f"Article not found in {language}. Trying to find it in another language...")
-                    # Try some common languages or iterate through several options
-                    for fallback_lang in ["en", "es", "fr", "de", "ru", "zh", "ja"]:
-                        if fallback_lang == language:
-                            continue
-                        print(f"Looking for {title} in fallback {fallback_lang}")
-                        fallback_result = search_wikipedia(title, fallback_lang, 0)
-                        if fallback_result["found"]:
-                            print(f"Found article in {fallback_lang} instead")
-                            language = fallback_lang  # Update language for future pages
-                            result = fallback_result
-                            break
-                    else:
-                        print(f"Could not find article in any language")
-                        return None, None
-                # Now that we have a result, don't skip to next iteration
-                first_article = False  # Don't run this logic again
-            else:
-                result = search_wikipedia(title, language, current_page)
-            
-            
-
-            if not result["found"]:
-                print(f"Article not found: {result.get('error', 'Unknown error')}")
-                return None, None
-            
-            full_text += result["content"]
-            
-            # Store langlinks from first page
-            if current_page == 0:
-                langlinks = result["langlinks"]
-            
-            # Check if we've reached the last page
-            if current_page >= result["total_pages"] - 1:
-                break
-                
-            current_page += 1
-            print(f"  Retrieved page {current_page} of {result['total_pages']}")
-            
-        except Exception as e:
-            print(f"Error retrieving Wikipedia article: {e}")
-            if full_text and langlinks:
-                # Return what we have so far
-                return full_text, langlinks
-            return None, None
-    
-    return full_text, langlinks
+    return get_wikipedia_article_with_fuzzy_search(client, title, language, first_article)
 
 def select_relevant_languages(client: Anthropic, title: str, source_lang: str, 
                              all_lang_links: List[Dict], max_translations: int = 5) -> List[str]:

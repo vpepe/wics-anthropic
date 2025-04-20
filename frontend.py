@@ -16,6 +16,8 @@ import time
 import datetime
 import re
 from urllib.parse import quote_plus
+from fuzzy_cache_match import find_fuzzy_cache_match
+from wikipedia_fuzzy_search import get_last_searched_title
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -85,7 +87,7 @@ def update_recent_articles_in_session():
 
 @app.route('/search', methods=['POST'])
 def search():
-    """Handle the search form submission"""
+    """Handle the search form submission with fuzzy search and cache matching"""
     title = request.form.get('title')
     language = request.form.get('language', 'en')
     max_translations = int(request.form.get('max_translations', 5))
@@ -94,7 +96,7 @@ def search():
     if not title:
         return redirect(url_for('index'))
     
-    # Create a permanent slug
+    # Create a permanent slug - this will be updated if fuzzy search finds a different article
     slug = create_slug(title, language)
     
     # Check if we already have a job for this slug
@@ -110,8 +112,91 @@ def search():
                 return redirect(url_for('article_status', language=language, article_name=slug.split('/', 1)[1]))
     
     # Check cache first unless no-cache is specified
-    if not no_cache:
+    if True:
+        # First check for exact cache match
         cached_path = backend.check_cache(title, language, max_translations)
+        
+        # If no exact match, try fuzzy cache matching
+        if cached_path is None:
+            should_redirect, fuzzy_cache_path, confidence, rationale = find_fuzzy_cache_match(
+                client, title, language, backend.CACHE_DIR
+            )
+
+            print("WHAT",should_redirect, fuzzy_cache_path)
+            
+            if should_redirect and fuzzy_cache_path:
+                # Extract article name from the path
+                cache_key = os.path.basename(fuzzy_cache_path).replace('.html', '')
+                if '/' in cache_key:
+                    # Handle nested paths
+                    cache_key = '/'.join(os.path.normpath(fuzzy_cache_path).split(os.sep)[-2:])
+                    cache_key = cache_key.replace('.html', '')
+                
+                # Parse the article name from the cache key
+                if '/' in cache_key:
+                    actual_language, article_name = cache_key.split('/', 1)
+                else:
+                    actual_language = language
+                    article_name = cache_key
+                
+                # Create friendly title from article_name
+                friendly_title = article_name.replace('_', ' ').title()
+                
+                # Create a "completed" job for the existing cached article
+                job_id = str(uuid.uuid4())
+                cache_date = datetime.datetime.fromtimestamp(os.path.getmtime(fuzzy_cache_path))
+                
+                with open(fuzzy_cache_path, 'r', encoding='utf-8') as f:
+                    cached_content = f.read()
+                
+                # Create the redirected slug
+                redirected_slug = f"{actual_language}/{article_name}"
+                
+                # Record the fuzzy match details
+                jobs[job_id] = {
+                    'id': job_id,
+                    'slug': redirected_slug,
+                    'title': friendly_title,
+                    'language': actual_language,
+                    'max_translations': max_translations,
+                    'status': 'completed',
+                    'progress': 100,
+                    'result': cached_content,
+                    'error': None,
+                    'article_info': {
+                        'title': friendly_title,
+                        'language': actual_language,
+                        'date': cache_date.strftime('%Y-%m-%d %H:%M:%S'),
+                        'from_cache': True,
+                        'cache_path': fuzzy_cache_path,
+                        'fuzzy_match': True,
+                        'original_query': title,
+                        'match_confidence': confidence,
+                        'match_rationale': rationale
+                    }
+                }
+                
+                # Map the redirected slug to this job
+                slug_to_job[redirected_slug] = job_id
+                
+                # Add a notification about the redirect in the session
+                if 'notifications' not in session:
+                    session['notifications'] = []
+                
+                session['notifications'].append({
+                    'type': 'info',
+                    'message': f'Redirected from "{title}" to the similar article "{friendly_title}" (confidence: {confidence:.0%})'
+                })
+                
+                # Update recent articles
+                update_recent_articles_in_session()
+                
+                # Redirect to the article page
+                return redirect(url_for('view_article', language=actual_language, article_name=article_name))
+            
+            # If we got here, no fuzzy match was found
+            cached_path = None
+            
         if cached_path:
             # Create a "completed" job for the cached article
             job_id = str(uuid.uuid4())
@@ -162,7 +247,8 @@ def search():
         'progress': 0,
         'result': None,
         'error': None,
-        'from_cache': False
+        'from_cache': False,
+        'original_query': title  # Store the original query for reference
     }
     
     # Map the slug to this job
@@ -179,8 +265,9 @@ def search():
     # Redirect to status page
     return redirect(url_for('article_status', language=language, article_name=slug.split('/', 1)[1]))
 
+# Modify the process_job function to handle fuzzy search results
 def process_job(job_id, title, language, max_translations, no_cache=False):
-    """Background process to run the article synthesis"""
+    """Background process to run the article synthesis with fuzzy search"""
     try:
         # Update job status
         jobs[job_id]['status'] = 'processing'
@@ -213,23 +300,47 @@ def process_job(job_id, title, language, max_translations, no_cache=False):
                 # It will be called when the user views the article
                 return
         
-        # Step 1: Get the original article
-        jobs[job_id]['progress'] = 10
-        original_text, langlinks = backend.get_wikipedia_article_with_tool(title, language, True)
+        # Step 1: Get the original article with fuzzy search
+        jobs[job_id]['progress'] = 5
+        original_text, langlinks = backend.get_wikipedia_article_with_tool(client, title, language, True)
         
         if not original_text or not langlinks:
             raise Exception(f"Could not find article '{title}' in {language}")
+        
+        # If fuzzy search used a different title, update the job
+        actual_title = get_last_searched_title()  # Direct import from wiki_fuzzy_search
+        if actual_title and actual_title != title:
+            # Update job's title and slug
+            jobs[job_id]['title'] = actual_title
+            new_slug = create_slug(actual_title, language)
+            old_slug = jobs[job_id]['slug']
+            jobs[job_id]['slug'] = new_slug
+            
+            # Update slug mapping - safely remove old mapping if it exists
+            if old_slug in slug_to_job and slug_to_job[old_slug] == job_id:
+                del slug_to_job[old_slug]
+                
+            # Add new mapping
+            slug_to_job[new_slug] = job_id
+            
+            # Add notification that fuzzy search was used
+            jobs[job_id]['fuzzy_search_used'] = True
+            jobs[job_id]['original_query'] = title  # Keep track of what user searched for
+            
+            print(f"Fuzzy search: '{title}' → '{actual_title}'")
+        
+        jobs[job_id]['progress'] = 10
         
         # Step 2: Select relevant languages
         jobs[job_id]['progress'] = 20
         relevant_languages = backend.select_relevant_languages(
             client, 
-            title, 
+            jobs[job_id]['title'],  # Use potentially updated title
             language, 
             langlinks, 
             max_translations=max_translations
         )
-        
+
         # Store the selected languages in the job
         jobs[job_id]['selected_languages'] = relevant_languages
         
@@ -240,7 +351,7 @@ def process_job(job_id, title, language, max_translations, no_cache=False):
                 translations.append((lang_link["language"], lang_link["title"]))
         
         # Add the source language
-        translations.append((language, title))
+        translations.append((language, jobs[job_id]['title']))  # Use potentially updated title
         
         # Step 3: Get translation content
         jobs[job_id]['progress'] = 30
@@ -275,14 +386,14 @@ def process_job(job_id, title, language, max_translations, no_cache=False):
         # Step 5: Synthesize
         jobs[job_id]['progress'] = 80
         synthesized_article = backend.synthesize_with_claude(
-            client, translated_articles, language, title
+            client, translated_articles, language, jobs[job_id]['title']  # Use potentially updated title
         )
         
         if synthesized_article.startswith("Synthesis failed:"):
             raise Exception(synthesized_article)
         
         # Save to cache
-        cache_path = backend.save_to_cache(title, language, max_translations, synthesized_article)
+        cache_path = backend.save_to_cache(jobs[job_id]['title'], language, max_translations, synthesized_article)
         
         # Update job with result
         jobs[job_id]['status'] = 'completed'
@@ -291,15 +402,12 @@ def process_job(job_id, title, language, max_translations, no_cache=False):
         
         # Store article metadata in the job
         jobs[job_id]['article_info'] = {
-            'title': title,
+            'title': jobs[job_id]['title'],  # Use potentially updated title
             'language': language,
             'date': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'from_cache': False,
             'cache_path': cache_path
         }
-        
-        # Update recent articles in session cannot be called from background thread
-        # It will be called when the user views the article
         
     except Exception as e:
         # Handle errors
