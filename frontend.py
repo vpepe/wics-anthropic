@@ -90,7 +90,7 @@ def search():
     """Handle the search form submission with fuzzy search and cache matching"""
     title = request.form.get('title')
     language = request.form.get('language', 'en')
-    max_translations = int(request.form.get('max_translations', 5))
+    max_translations = 5
     no_cache = request.form.get('no_cache') == 'true'
     
     if not title:
