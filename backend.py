@@ -65,6 +65,14 @@ The article should:
 4. Be well-structured with appropriate sections and subsections
 5. Resolve any contradictory information by noting different perspectives or choosing the most reliable information
 6. Note which language's version is being referenced for each piece of information, if relevant
+7. Include hyperlinks to related topics in the format `/article/language_code/article_name` (for example `/article/en/quantum_physics` or `/article/it/renaissance`). Generate links even if you're not sure whether they exist - the system will automatically create placeholder pages for non-existent articles.
+
+When adding hyperlinks:
+- Link the first mention of important concepts, people, places, or events
+- Use the target language code ({target_lang}) for all links
+- Only link to other languages when referring to concepts that are particularly relevant to that language or culture
+- Format links simply using Markdown syntax: [link text](/article/language_code/article_name)
+- For article names with multiple words, replace spaces with underscores
 
 SYNTHESIZED ARTICLE:""")
 
@@ -474,15 +482,8 @@ def synthesize_with_claude(client: Anthropic, articles: Dict[str, str], target_l
         ) as stream:
             # Collect the streamed response
             synthesis = ""
-            chunk_count = 0
             for text in stream.text_stream:
                 synthesis += text
-                # Print a progress marker every few chunks
-                chunk_count += 1
-                if chunk_count % 10 == 0:
-                    print(".", end="", flush=True)
-            
-            print()  # New line after progress dots
             
             if synthesis:
                 return synthesis

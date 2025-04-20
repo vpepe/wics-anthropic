@@ -315,7 +315,8 @@ def article_status(language, article_name):
     slug = f"{language}/{article_name}"
     
     if slug not in slug_to_job:
-        return redirect(url_for('index'))
+        # Article doesn't exist - redirect to the not_found page
+        return redirect(url_for('not_found', language=language, article_name=article_name))
     
     job_id = slug_to_job[slug]
     job = jobs[job_id]
@@ -367,7 +368,8 @@ def view_article(language, article_name):
     slug = f"{language}/{article_name}"
     
     if slug not in slug_to_job:
-        return redirect(url_for('index'))
+        # Article doesn't exist - redirect to the not_found page
+        return redirect(url_for('not_found', language=language, article_name=article_name))
     
     job_id = slug_to_job[slug]
     if job_id not in jobs or jobs[job_id]['status'] != 'completed':
@@ -615,6 +617,39 @@ def clear_cache():
                     print(f"Error removing cache file {filename}: {e}")
     
     return redirect(url_for('list_cache'))
+
+# New route for handling non-existent articles
+@app.route('/not_found/<language>/<article_name>')
+def not_found(language, article_name):
+    """Show a page prompting the user to create a new article"""
+    # Determine article title from article_name (replace hyphens with spaces)
+    article_title = article_name.replace('-', ' ').title()
+    
+    # Get the language name from the language code
+    language_name = "Unknown"
+    for lang in [
+        {"code": "en", "name": "English"},
+        {"code": "ja", "name": "日本語"},
+        {"code": "ru", "name": "Русский"},
+        {"code": "de", "name": "Deutsch"},
+        {"code": "es", "name": "Español"},
+        {"code": "fr", "name": "Français"},
+        {"code": "zh", "name": "中文"},
+        {"code": "it", "name": "Italiano"},
+        {"code": "pt", "name": "Português"},
+        {"code": "pl", "name": "Polski"},
+    ]:
+        if lang["code"] == language:
+            language_name = lang["name"]
+            break
+    
+    return render_template('not_found.html', 
+                          language=language,
+                          language_name=language_name,
+                          article_name=article_name,
+                          article_title=article_title)
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)

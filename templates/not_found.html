@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Article Not Found - Linguapedia</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
+    <style>
+        .not-found-container {
+            max-width: 700px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .action-button {
+            display: inline-block;
+            background-color: #3c82f6;
+            color: white;
+            font-weight: 500;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            text-decoration: none;
+            margin-top: 1rem;
+            transition: background-color 0.2s;
+        }
+        
+        .action-button:hover {
+            background-color: #2563eb;
+        }
+        
+        .secondary-link {
+            display: inline-block;
+            margin-top: 1rem;
+            margin-left: 1rem;
+            color: #4b5563;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <header class="bg-gray-900 text-white p-4 site-header">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="{{ url_for('index') }}" class="text-2xl font-serif">Linguapedia</a>
+            <div class="flex items-center space-x-4">
+                <span>{{ language_name }}</span>
+                <a href="{{ url_for('index') }}" class="bg-primary hover:bg-primary-dark px-4 py-1 rounded">
+                    New Search
+                </a>
+            </div>
+        </div>
+    </header>
+    
+    <main class="container mx-auto p-6">
+        <div class="not-found-container">
+            <h1 class="text-3xl font-serif mb-4">Article Not Found</h1>
+            
+            <p class="mb-4">The article <strong>"{{ article_title }}"</strong> doesn't exist yet in {{ language_name }}.</p>
+            
+            <p class="mb-6">Would you like to synthesize this article by combining information from multiple language editions of Wikipedia?</p>
+            
+            <form action="{{ url_for('search') }}" method="post">
+                <input type="hidden" name="title" value="{{ article_title }}">
+                <input type="hidden" name="language" value="{{ language }}">
+                <input type="hidden" name="max_translations" value="5">
+                
+                <button type="submit" class="action-button">
+                    Create this article
+                </button>
+                
+                <a href="{{ url_for('index') }}" class="secondary-link">
+                    Return to home page
+                </a>
+            </form>
+            
+            <div class="mt-8 text-sm text-gray-500">
+                <p>Linguapedia uses Claude AI to combine information from multiple Wikipedia language editions, creating comprehensive articles that preserve unique cultural perspectives and information.</p>
+            </div>
+        </div>
+    </main>
+    
+    <footer class="footer-content">
+        <div class="container mx-auto px-6 text-center">
+            <p>Linguapedia combines multiple Wikipedia language editions for more comprehensive information</p>
+            <p class="mt-1">Not affiliated with Wikipedia or the Wikimedia Foundation</p>
+        </div>
+    </footer>
+</body>
+</html>

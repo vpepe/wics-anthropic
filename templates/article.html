@@ -175,7 +175,7 @@
             renderMarkdown(markdownContent);
         });
         
-        // Simple function to convert markdown to HTML
+        // Function to convert markdown to HTML with enhanced link handling
         function renderMarkdown(markdown) {
             // Basic conversion of markdown to HTML
             let html = markdown
@@ -191,8 +191,25 @@
                 .replace(/^\* (.*$)/gm, '<ul><li>$1</li></ul>')
                 .replace(/^- (.*$)/gm, '<ul><li>$1</li></ul>')
                 .replace(/^(\d+)\. (.*$)/gm, '<ol><li>$2</li></ol>')
-                // Links
-                .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>')
+                // Links - modified to handle our special format
+                .replace(/\[(.*?)\]\((\/article\/[a-z]{2}\/[^)]+)\)/g, function(match, text, url) {
+                    // Check if the link is to an article page and handle it specially
+                    if (url.startsWith('/article/')) {
+                        // Extract language code and article name
+                        const parts = url.split('/');
+                        if (parts.length >= 4) {
+                            const langCode = parts[2];
+                            const articleName = parts[3];
+                            
+                            // Create proper URL with Flask's url_for format
+                            return `<a href="/article/${langCode}/${articleName}" class="wiki-link">${text}</a>`;
+                        }
+                    }
+                    // Fall back to normal link handling
+                    return `<a href="${url}">${text}</a>`;
+                })
+                // Handle other links (external, etc.)
+                .replace(/\[(.*?)\]\(((?!\/article\/)[^)]+)\)/g, '<a href="$2">$1</a>')
                 // Paragraphs (double newlines)
                 .replace(/\n\n/g, '</p><p>');
             
@@ -218,6 +235,21 @@
             
             // Generate the table of contents
             generateTableOfContents();
+            
+            // Add event listeners to wiki links to handle non-existent articles
+            addWikiLinkHandlers();
+        }
+        
+        // Add event listeners to wiki links
+        function addWikiLinkHandlers() {
+            const wikiLinks = document.querySelectorAll('.wiki-link');
+            
+            wikiLinks.forEach(link => {
+                link.addEventListener('click', function(event) {
+                    // Let navigation happen normally - the backend will handle
+                    // redirecting to the "not found" page if the article doesn't exist
+                });
+            });
         }
         
         // Generate a table of contents from the headers
