@@ -21,16 +21,13 @@
             <div class="loading-spinner mb-6"></div>
             
             <p class="mb-4">Creating a comprehensive article about <strong>{{ job.title }}</strong></p>
-            
-            <div id="currentStep" class="text-blue-600 mb-4 font-medium">
-                Initializing...
-            </div>
+        
             
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill" style="width: {{ job.progress }}%;"></div>
             </div>
             <div class="text-sm text-gray-500 mt-2">
-                <span id="progressText">{{ job.progress }}%</span> complete
+                <span id="progressText">{{ job.progress }}</span>% complete...
             </div>
             
             <div class="mt-6 bg-gray-100 p-4 rounded text-left article-sidebar">
@@ -64,7 +61,7 @@
             </div>
             
             <p class="text-sm text-gray-500 mt-6">
-                This process typically takes 3-7 minutes depending on article length and the number of languages.
+                Please allow for takes 3-7 minutes depending on article length.
             </p>
             
             {% if job.error %}
@@ -75,15 +72,6 @@
                 </p>
             </div>
             {% endif %}
-            
-            <div class="claude-attribution mt-6">
-                <span>Synthesizing with</span>
-                <svg width="20" height="20" viewBox="0 0 24 24" class="claude-logo ml-2" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.418 0-8-3.582-8-8s3.582-8 8-8 8 3.582 8 8-3.582 8-8 8z" fill="#da7756"/>
-                    <circle cx="12" cy="12" r="5" fill="#da7756"/>
-                </svg>
-                <span class="ml-1">Claude AI</span>
-            </div>
         </div>
     </div>
     
