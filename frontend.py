@@ -16,6 +16,7 @@ import time
 import datetime
 import re
 from urllib.parse import quote_plus
+from fuzzy_cache_match import find_fuzzy_cache_match
 from wikipedia_fuzzy_search import get_last_searched_title
 
 # Initialize Flask app
@@ -86,7 +87,7 @@ def update_recent_articles_in_session():
 
 @app.route('/search', methods=['POST'])
 def search():
-    """Handle the search form submission with fuzzy search capability"""
+    """Handle the search form submission with fuzzy search and cache matching"""
     title = request.form.get('title')
     language = request.form.get('language', 'en')
     max_translations = int(request.form.get('max_translations', 5))
@@ -111,8 +112,91 @@ def search():
                 return redirect(url_for('article_status', language=language, article_name=slug.split('/', 1)[1]))
     
     # Check cache first unless no-cache is specified
-    if not no_cache:
+    if True:
+        # First check for exact cache match
         cached_path = backend.check_cache(title, language, max_translations)
+        
+        # If no exact match, try fuzzy cache matching
+        if cached_path is None:
+            should_redirect, fuzzy_cache_path, confidence, rationale = find_fuzzy_cache_match(
+                client, title, language, backend.CACHE_DIR
+            )
+
+            print("WHAT",should_redirect, fuzzy_cache_path)
+            
+            if should_redirect and fuzzy_cache_path:
+                # Extract article name from the path
+                cache_key = os.path.basename(fuzzy_cache_path).replace('.html', '')
+                if '/' in cache_key:
+                    # Handle nested paths
+                    cache_key = '/'.join(os.path.normpath(fuzzy_cache_path).split(os.sep)[-2:])
+                    cache_key = cache_key.replace('.html', '')
+                
+                # Parse the article name from the cache key
+                if '/' in cache_key:
+                    actual_language, article_name = cache_key.split('/', 1)
+                else:
+                    actual_language = language
+                    article_name = cache_key
+                
+                # Create friendly title from article_name
+                friendly_title = article_name.replace('_', ' ').title()
+                
+                # Create a "completed" job for the existing cached article
+                job_id = str(uuid.uuid4())
+                cache_date = datetime.datetime.fromtimestamp(os.path.getmtime(fuzzy_cache_path))
+                
+                with open(fuzzy_cache_path, 'r', encoding='utf-8') as f:
+                    cached_content = f.read()
+                
+                # Create the redirected slug
+                redirected_slug = f"{actual_language}/{article_name}"
+                
+                # Record the fuzzy match details
+                jobs[job_id] = {
+                    'id': job_id,
+                    'slug': redirected_slug,
+                    'title': friendly_title,
+                    'language': actual_language,
+                    'max_translations': max_translations,
+                    'status': 'completed',
+                    'progress': 100,
+                    'result': cached_content,
+                    'error': None,
+                    'article_info': {
+                        'title': friendly_title,
+                        'language': actual_language,
+                        'date': cache_date.strftime('%Y-%m-%d %H:%M:%S'),
+                        'from_cache': True,
+                        'cache_path': fuzzy_cache_path,
+                        'fuzzy_match': True,
+                        'original_query': title,
+                        'match_confidence': confidence,
+                        'match_rationale': rationale
+                    }
+                }
+                
+                # Map the redirected slug to this job
+                slug_to_job[redirected_slug] = job_id
+                
+                # Add a notification about the redirect in the session
+                if 'notifications' not in session:
+                    session['notifications'] = []
+                
+                session['notifications'].append({
+                    'type': 'info',
+                    'message': f'Redirected from "{title}" to the similar article "{friendly_title}" (confidence: {confidence:.0%})'
+                })
+                
+                # Update recent articles
+                update_recent_articles_in_session()
+                
+                # Redirect to the article page
+                return redirect(url_for('view_article', language=actual_language, article_name=article_name))
+            
+            # If we got here, no fuzzy match was found
+            cached_path = None
+            
         if cached_path:
             # Create a "completed" job for the cached article
             job_id = str(uuid.uuid4())
