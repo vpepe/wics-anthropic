@@ -56,11 +56,11 @@
     
     <main class="container mx-auto p-6">
         <div class="not-found-container">
-            <h1 class="text-3xl font-serif mb-4">Article Not Found</h1>
+            <h1 class="text-3xl font-serif mb-4">Exact Article Not Found</h1>
             
-            <p class="mb-4">The article <strong>"{{ article_title }}"</strong> doesn't exist yet in {{ language_name }}.</p>
+            <p class="mb-4">An article with the exact name <strong>"{{ article_title }}"</strong> doesn't exist yet in the {{ language_name }} version of Linguapedia.</p>
             
-            <p class="mb-6">Would you like to synthesize this article by combining information from multiple language editions of Wikipedia?</p>
+            <p class="mb-6">Would you like to check if an article with the same content under a similar name exists? If one does not, we will synthesize this article by combining information from multiple language editions of Wikipedia.</p>
             
             <form action="{{ url_for('search') }}" method="post">
                 <input type="hidden" name="title" value="{{ article_title }}">
@@ -68,7 +68,7 @@
                 <input type="hidden" name="max_translations" value="5">
                 
                 <button type="submit" class="action-button">
-                    Create this article
+                    Search
                 </button>
                 
                 <a href="{{ url_for('index') }}" class="secondary-link">
