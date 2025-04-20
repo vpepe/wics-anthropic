@@ -278,64 +278,79 @@ def evaluate_search_results(client, user_query: str, search_results: List[Dict[s
     # Fallback: return the first search result if Claude fails
     return search_results[0]["title"] if search_results else ""
 
-def get_wikipedia_article_with_fuzzy_search(client, title: str, language: str, first_article: bool = False) -> Tuple[Optional[str], Optional[List[Dict]]]:
+def get_wikipedia_article_with_fuzzy_search(
+    client,
+    title: str,
+    language: str,
+    first_article: bool = False
+) -> Tuple[Optional[str], Optional[List[Dict]]]:
     """
-    Retrieves a Wikipedia article with fuzzy search to handle misspellings.
+    Retrieves a Wikipedia article, trying exact matches first (in the requested language,
+    then in fallback languages), and only then resorting to fuzzy search.
     
     Args:
         client: Anthropic client
         title: The title of the Wikipedia article
         language: The language code
-        first_article: Flag to indicate if this is the first article retrieval
+        first_article: Flag to allow fuzzy search in fallback languages
     Returns:
         Tuple containing article text and language links if successful, else (None, None)
     """
     global _last_searched_title
     print(f"Searching for article: {title} in {language}")
     
-    # First try exact match
+    # Normalize title
     title = title.replace("_", " ")
-    exact_result = search_wikipedia(title, language, 0)
     
-    if exact_result["found"]:
-        # If exact match found, proceed as normal
-        _last_searched_title = title  # Store the title we used
+    # 1) Exact match in requested language
+    exact_result = search_wikipedia(title, language, 0)
+    if exact_result.get("found"):
+        _last_searched_title = title
         return get_full_article_content(title, language)
-    else:
-        print(f"Article not found by exact title. Trying fuzzy search...")
-        
-        # Perform fuzzy search
-        search_results = perform_fuzzy_search(title, language)
-        
-        if not search_results:
-            print(f"No search results found for {title} in {language}")
-            
-            # Try some common languages as fallback if first_article
-            if first_article:
-                for fallback_lang in ["en", "es", "fr", "de", "ru", "zh", "ja"]:
-                    if fallback_lang == language:
-                        continue
-                    
-                    print(f"Trying fuzzy search in fallback language: {fallback_lang}")
-                    fallback_results = perform_fuzzy_search(title, fallback_lang)
-                    
-                    if fallback_results:
-                        # Evaluate and select the best result using Claude
-                        selected_title = evaluate_search_results(client, title, fallback_results)
-                        
-                        if selected_title:
-                            print(f"Found article in {fallback_lang}: {selected_title}")
-                            _last_searched_title = selected_title  # Store the title we used
-                            return get_full_article_content(selected_title, fallback_lang)
-            
-            return None, None
-        
-        # Evaluate and select the best result using Claude
-        selected_title = evaluate_search_results(client, title, search_results)
-        
-        if selected_title:
-            print(f"Selected article: {selected_title}")
-            _last_searched_title = selected_title  # Store the title we used
-            return get_full_article_content(selected_title, language)
+    
+    # 2) Exact match in fallback languages
+    for fallback_lang in ["en", "es", "fr", "de", "ru", "zh", "ja"]:
+        if fallback_lang == language:
+            continue
+        print(f"Checking exact match in fallback language: {fallback_lang}")
+        fb_exact = search_wikipedia(title, fallback_lang, 0)
+        if fb_exact.get("found"):
+            print(f"Found exact article in {fallback_lang}")
+            _last_searched_title = title
+            return get_full_article_content(title, fallback_lang)
+    
+    # 3) Fuzzy search in requested language
+    print("Article not found by exact match. Trying fuzzy search in primary language...")
+    primary_fuzzy = perform_fuzzy_search(title, language)
+    if primary_fuzzy:
+        selected = evaluate_search_results(client, title, primary_fuzzy)
+        if selected:
+            print(f"Selected article by fuzzy in {language}: {selected}")
+            _last_searched_title = selected
+            return get_full_article_content(selected, language)
         else:
-            return None, None
+            print("Fuzzy search returned candidates, but none were selected.")
+    else:
+        print("No fuzzy-search results in primary language.")
+    
+    # 4) (Optional) Fuzzy search in fallback languages, if this is the first article
+    if first_article:
+        for fallback_lang in ["en", "es", "fr", "de", "ru", "zh", "ja"]:
+            if fallback_lang == language:
+                continue
+            print(f"Trying fuzzy search in fallback language: {fallback_lang}")
+            fb_fuzzy = perform_fuzzy_search(title, fallback_lang)
+            if fb_fuzzy:
+                selected = evaluate_search_results(client, title, fb_fuzzy)
+                if selected:
+                    print(f"Found article in {fallback_lang} by fuzzy: {selected}")
+                    _last_searched_title = selected
+                    return get_full_article_content(selected, fallback_lang)
+        print("No fuzzy-search results in fallback languages.")
+    
+    # Not found anywhere
+    return None, None
+
+
+
+

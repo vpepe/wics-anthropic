@@ -91,7 +91,7 @@ def search():
     title = request.form.get('title')
     language = request.form.get('language', 'en')
     max_translations = 5
-    no_cache = request.form.get('no_cache') == 'true'
+    no_cache = request.form.get('no_cache') == 'false'
     
     if not title:
         return redirect(url_for('index'))
@@ -112,7 +112,7 @@ def search():
                 return redirect(url_for('article_status', language=language, article_name=slug.split('/', 1)[1]))
     
     # Check cache first unless no-cache is specified
-    if True:
+    if not no_cache:
         # First check for exact cache match
         cached_path = backend.check_cache(title, language, max_translations)
         
@@ -308,26 +308,26 @@ def process_job(job_id, title, language, max_translations, no_cache=False):
             raise Exception(f"Could not find article '{title}' in {language}")
         
         # If fuzzy search used a different title, update the job
-        actual_title = get_last_searched_title()  # Direct import from wiki_fuzzy_search
-        if actual_title and actual_title != title:
+        #actual_title = title  # Direct import from wiki_fuzzy_search
+        #if actual_title and actual_title != title:
             # Update job's title and slug
-            jobs[job_id]['title'] = actual_title
-            new_slug = create_slug(actual_title, language)
-            old_slug = jobs[job_id]['slug']
-            jobs[job_id]['slug'] = new_slug
+        #    jobs[job_id]['title'] = title
+        #    new_slug = create_slug(title, language)
+        #    old_slug = jobs[job_id]['slug']
+        #    jobs[job_id]['slug'] = new_slug
             
             # Update slug mapping - safely remove old mapping if it exists
-            if old_slug in slug_to_job and slug_to_job[old_slug] == job_id:
-                del slug_to_job[old_slug]
+        #    if old_slug in slug_to_job and slug_to_job[old_slug] == job_id:
+        #        del slug_to_job[old_slug]
                 
             # Add new mapping
-            slug_to_job[new_slug] = job_id
+        #    slug_to_job[new_slug] = job_id
             
             # Add notification that fuzzy search was used
-            jobs[job_id]['fuzzy_search_used'] = True
-            jobs[job_id]['original_query'] = title  # Keep track of what user searched for
+        #    jobs[job_id]['fuzzy_search_used'] = True
+        #    jobs[job_id]['original_query'] = title  # Keep track of what user searched for
             
-            print(f"Fuzzy search: '{title}' → '{actual_title}'")
+        #    print(f"Fuzzy search: '{title}' → '{actual_title}'")
         
         jobs[job_id]['progress'] = 10
         

@@ -14,7 +14,7 @@ from typing import List, Dict, Optional, Tuple
 from anthropic import Anthropic
 
 # Cache similarity threshold
-SIMILARITY_THRESHOLD = 0.8
+SIMILARITY_THRESHOLD = 0.95
 
 # Function to get Claude to evaluate cache matches
 CACHE_MATCH_PROMPT = """
