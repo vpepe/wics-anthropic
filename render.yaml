@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: wikipedia-synthesizer
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn frontend:app
+    envVars:
+      - key: CLAUDE_API_KEY
+        sync: false
+    disk:
+      name: cache
+      mountPath: /app/cache
+      sizeGB: 10
+
