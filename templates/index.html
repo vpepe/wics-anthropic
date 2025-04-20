@@ -133,8 +133,9 @@
             <div class="recent-grid">
                 {% for article in recent_articles %}
                 <div class="recent-item">
-                    {% if article.job_id %}
-                    <a href="{{ url_for('article', job_id=article.job_id) }}" class="block w-full text-left">
+                    {% if article.slug %}
+                    {% set language, article_name = article.slug.split('/') %}
+                    <a href="{{ url_for('view_article', language=language, article_name=article_name) }}" class="block w-full text-left">
                     {% else %}
                     <form action="{{ url_for('search') }}" method="post">
                         <input type="hidden" name="title" value="{{ article.title }}">
@@ -153,7 +154,7 @@
                             </span>
                             <span>{{ article.date }}</span>
                         </div>
-                    {% if not article.job_id %}
+                    {% if not article.slug %}
                         </button>
                     </form>
                     {% else %}

@@ -531,10 +531,10 @@ def get_cache_key(title: str, language: str, max_translations: int) -> str:
         Cache key string
     """
     # Create a string that uniquely identifies this request
-    cache_str = f"{title.lower()}_{language}_{max_translations}"
+    cache_str = f"{language}/{title.replace(' ','_')}"
     
     # Hash it to create a filename-safe string
-    return hashlib.md5(cache_str.encode('utf-8')).hexdigest()
+    return cache_str
 
 def get_cache_path(cache_key: str) -> str:
     """

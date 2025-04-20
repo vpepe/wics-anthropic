@@ -14,6 +14,8 @@ import uuid
 import threading
 import time
 import datetime
+import re
+from urllib.parse import quote_plus
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -22,24 +24,36 @@ app.secret_key = os.urandom(24)  # For session management
 # In-memory storage for jobs (would use a database in production)
 jobs = {}
 
+# Mapping between permanent slugs and job IDs
+slug_to_job = {}
+
 # Create Anthropic client
 client = Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
+
+def create_slug(title, language):
+    """Create a permanent slug from title and language"""
+    # Normalize title: lowercase, replace spaces with hyphens, remove special chars
+    title_slug = re.sub(r'[^a-zA-Z0-9\s-]', '', title.lower()).strip()
+    title_slug = re.sub(r'[\s-]+', '-', title_slug)
+    # Format as language/article_name
+    full_slug = f"{language}/{title_slug}"
+    return full_slug
 
 @app.route('/')
 def index():
     """Render the search page"""
     languages = [
-  {"code": "en", "name": "English", "count": "Synthesize an article"},
-  {"code": "ja", "name": "日本語", "count": "記事を合成する"},
-  {"code": "ru", "name": "Русский", "count": "Синтезировать статью"},
-  {"code": "de", "name": "Deutsch", "count": "Artikel synthetisieren"},
-  {"code": "es", "name": "Español", "count": "Sintetizar un artículo"},
-  {"code": "fr", "name": "Français", "count": "Synthétiser un article"},
-  {"code": "zh", "name": "中文", "count": "综合文章"},
-  {"code": "it", "name": "Italiano", "count": "Sintetizzare un articolo"},
-  {"code": "pt", "name": "Português", "count": "Sintetizar um artigo"},
-  {"code": "pl", "name": "Polski", "count": "Zsyntetyzuj artykuł"}
-]
+      {"code": "en", "name": "English", "count": "Synthesize an article"},
+      {"code": "ja", "name": "日本語", "count": "記事を合成する"},
+      {"code": "ru", "name": "Русский", "count": "Синтезировать статью"},
+      {"code": "de", "name": "Deutsch", "count": "Artikel synthetisieren"},
+      {"code": "es", "name": "Español", "count": "Sintetizar un artículo"},
+      {"code": "fr", "name": "Français", "count": "Synthétiser un article"},
+      {"code": "zh", "name": "中文", "count": "综合文章"},
+      {"code": "it", "name": "Italiano", "count": "Sintetizzare un articolo"},
+      {"code": "pt", "name": "Português", "count": "Sintetizar um artigo"},
+      {"code": "pl", "name": "Polski", "count": "Zsyntetyzuj artykuł"}
+    ]
     
     # Update the session with recent articles
     update_recent_articles_in_session()
@@ -58,9 +72,9 @@ def update_recent_articles_in_session():
     completed_articles = []
     for job in jobs.values():
         if job['status'] == 'completed' and 'article_info' in job:
-            # Add job ID to article info for linking
+            # Add permanent slug to article info for linking
             article_info = job['article_info'].copy()
-            article_info['job_id'] = job['id']
+            article_info['slug'] = job.get('slug', create_slug(job['title'], job['language']))
             completed_articles.append(article_info)
     
     # Sort by date (newest first) and limit to 10
@@ -80,6 +94,21 @@ def search():
     if not title:
         return redirect(url_for('index'))
     
+    # Create a permanent slug
+    slug = create_slug(title, language)
+    
+    # Check if we already have a job for this slug
+    if slug in slug_to_job and slug_to_job[slug] in jobs:
+        existing_job_id = slug_to_job[slug]
+        existing_job = jobs[existing_job_id]
+        
+        # If job is completed or in progress, redirect to it
+        if existing_job['status'] in ['completed', 'processing', 'queued']:
+            if existing_job['status'] == 'completed':
+                return redirect(url_for('view_article', language=language, article_name=slug.split('/', 1)[1]))
+            else:
+                return redirect(url_for('article_status', language=language, article_name=slug.split('/', 1)[1]))
+    
     # Check cache first unless no-cache is specified
     if not no_cache:
         cached_path = backend.check_cache(title, language, max_translations)
@@ -93,6 +122,7 @@ def search():
             
             jobs[job_id] = {
                 'id': job_id,
+                'slug': slug,
                 'title': title,
                 'language': language,
                 'max_translations': max_translations,
@@ -109,11 +139,14 @@ def search():
                 }
             }
             
+            # Map the slug to this job
+            slug_to_job[slug] = job_id
+            
             # Add to recent articles
             update_recent_articles_in_session()
             
             # Redirect to the article page
-            return redirect(url_for('article', job_id=job_id))
+            return redirect(url_for('view_article', language=language, article_name=slug.split('/', 1)[1]))
     
     # Create a job ID
     job_id = str(uuid.uuid4())
@@ -121,6 +154,7 @@ def search():
     # Initialize job
     jobs[job_id] = {
         'id': job_id,
+        'slug': slug,
         'title': title,
         'language': language,
         'max_translations': max_translations,
@@ -131,6 +165,9 @@ def search():
         'from_cache': False
     }
     
+    # Map the slug to this job
+    slug_to_job[slug] = job_id
+    
     # Start the synthesis process in a background thread
     thread = threading.Thread(
         target=process_job,
@@ -140,7 +177,7 @@ def search():
     thread.start()
     
     # Redirect to status page
-    return redirect(url_for('status', job_id=job_id))
+    return redirect(url_for('article_status', language=language, article_name=slug.split('/', 1)[1]))
 
 def process_job(job_id, title, language, max_translations, no_cache=False):
     """Background process to run the article synthesis"""
@@ -270,33 +307,71 @@ def process_job(job_id, title, language, max_translations, no_cache=False):
         jobs[job_id]['error'] = str(e)
         print(f"Error in job {job_id}: {e}")
 
-@app.route('/status/<job_id>')
-def status(job_id):
-    """Show the status page for a job"""
-    if job_id not in jobs:
+# New route for status using language/article_name format
+@app.route('/status/<language>/<article_name>')
+def article_status(language, article_name):
+    """Show the status page for a job using its permanent URL"""
+    # Reconstruct the slug
+    slug = f"{language}/{article_name}"
+    
+    if slug not in slug_to_job:
         return redirect(url_for('index'))
     
+    job_id = slug_to_job[slug]
     job = jobs[job_id]
     
     if job['status'] == 'completed':
         # Redirect to article page if job is complete
-        return redirect(url_for('article', job_id=job_id))
+        return redirect(url_for('view_article', language=language, article_name=article_name))
     
-    return render_template('status.html', job=job)
+    return render_template('status.html', job=job, language=language, article_name=article_name)
+
+# Legacy route for job_id-based status (for backward compatibility)
+@app.route('/job_status/<job_id>')
+def status(job_id):
+    """Show the status page for a job using legacy job_id"""
+    if job_id not in jobs:
+        return redirect(url_for('index'))
+    
+    job = jobs[job_id]
+    slug = job.get('slug', create_slug(job['title'], job['language']))
+    language, article_name = slug.split('/', 1)
+    
+    # Redirect to the language/article_name URL for canonical linking
+    return redirect(url_for('article_status', language=language, article_name=article_name))
+
+@app.route('/api/status/<language>/<article_name>')
+def api_status_by_path(language, article_name):
+    """API endpoint for getting job status via AJAX using language/article_name"""
+    slug = f"{language}/{article_name}"
+    
+    if slug not in slug_to_job:
+        return jsonify({'error': 'Article not found'}), 404
+    
+    job_id = slug_to_job[slug]
+    return jsonify(jobs[job_id])
 
 @app.route('/api/status/<job_id>')
 def api_status(job_id):
-    """API endpoint for getting job status via AJAX"""
+    """API endpoint for getting job status via AJAX using job_id (legacy)"""
     if job_id not in jobs:
         return jsonify({'error': 'Job not found'}), 404
     
     return jsonify(jobs[job_id])
 
-@app.route('/article/<job_id>')
-def article(job_id):
-    """Show the synthesized article"""
-    if job_id not in jobs or jobs[job_id]['status'] != 'completed':
+# New route for viewing article using language/article_name format
+@app.route('/article/<language>/<article_name>')
+def view_article(language, article_name):
+    """Show the synthesized article using its permanent URL"""
+    # Reconstruct the slug
+    slug = f"{language}/{article_name}"
+    
+    if slug not in slug_to_job:
         return redirect(url_for('index'))
+    
+    job_id = slug_to_job[slug]
+    if job_id not in jobs or jobs[job_id]['status'] != 'completed':
+        return redirect(url_for('article_status', language=language, article_name=article_name))
     
     job = jobs[job_id]
     
@@ -335,11 +410,33 @@ def article(job_id):
                           selected_languages=selected_languages,
                           from_cache=from_cache,
                           cache_path=cache_path,
-                          job_id=job_id)
+                          article_name=article_name,
+                          job_id=job_id)  # Keep job_id for backward compatibility
 
-@app.route('/download/<job_id>')
-def download_article(job_id):
-    """Download the synthesized article as HTML"""
+# Legacy route for job_id-based article viewing (for backward compatibility)
+@app.route('/article_by_id/<job_id>')
+def article(job_id):
+    """Show the synthesized article using the legacy job_id"""
+    if job_id not in jobs or jobs[job_id]['status'] != 'completed':
+        return redirect(url_for('index'))
+    
+    job = jobs[job_id]
+    slug = job.get('slug', create_slug(job['title'], job['language']))
+    language, article_name = slug.split('/', 1)
+    
+    # Redirect to the language/article_name URL for canonical linking
+    return redirect(url_for('view_article', language=language, article_name=article_name))
+
+@app.route('/download/<language>/<article_name>')
+def download_article_by_path(language, article_name):
+    """Download the synthesized article as HTML using language/article_name"""
+    # Reconstruct the slug
+    slug = f"{language}/{article_name}"
+    
+    if slug not in slug_to_job:
+        return redirect(url_for('index'))
+    
+    job_id = slug_to_job[slug]
     if job_id not in jobs or jobs[job_id]['status'] != 'completed':
         return redirect(url_for('index'))
     
@@ -377,20 +474,39 @@ def download_article(job_id):
         except:
             pass
 
-@app.route('/regenerate/<job_id>')
-def regenerate_article(job_id):
-    """Regenerate an article (bypassing the cache)"""
-    if job_id not in jobs:
+# Legacy route for job_id-based download (for backward compatibility)
+@app.route('/download_by_id/<job_id>')
+def download_article(job_id):
+    """Download the synthesized article as HTML using job_id (legacy)"""
+    if job_id not in jobs or jobs[job_id]['status'] != 'completed':
         return redirect(url_for('index'))
     
+    job = jobs[job_id]
+    slug = job.get('slug', create_slug(job['title'], job['language']))
+    language, article_name = slug.split('/', 1)
+    
+    # Redirect to the language/article_name URL for canonical linking
+    return redirect(url_for('download_article_by_path', language=language, article_name=article_name))
+
+@app.route('/regenerate/<language>/<article_name>')
+def regenerate_article_by_path(language, article_name):
+    """Regenerate an article (bypassing the cache) using language/article_name"""
+    # Reconstruct the slug
+    slug = f"{language}/{article_name}"
+    
+    if slug not in slug_to_job:
+        return redirect(url_for('index'))
+    
+    job_id = slug_to_job[slug]
     job = jobs[job_id]
     
     # Create a new job with no-cache option
     new_job_id = str(uuid.uuid4())
     
-    # Initialize job
+    # Initialize job with the same slug
     jobs[new_job_id] = {
         'id': new_job_id,
+        'slug': slug,  # Use the same slug
         'title': job['title'],
         'language': job['language'],
         'max_translations': job['max_translations'],
@@ -401,6 +517,9 @@ def regenerate_article(job_id):
         'from_cache': False
     }
     
+    # Update the slug mapping to point to the new job
+    slug_to_job[slug] = new_job_id
+    
     # Start the synthesis process in a background thread
     thread = threading.Thread(
         target=process_job,
@@ -410,7 +529,21 @@ def regenerate_article(job_id):
     thread.start()
     
     # Redirect to status page
-    return redirect(url_for('status', job_id=new_job_id))
+    return redirect(url_for('article_status', language=language, article_name=article_name))
+
+# Legacy route for job_id-based regeneration (for backward compatibility)
+@app.route('/regenerate_by_id/<job_id>')
+def regenerate_article(job_id):
+    """Regenerate an article (bypassing the cache) using job_id (legacy)"""
+    if job_id not in jobs:
+        return redirect(url_for('index'))
+    
+    job = jobs[job_id]
+    slug = job.get('slug', create_slug(job['title'], job['language']))
+    language, article_name = slug.split('/', 1)
+    
+    # Redirect to the language/article_name URL for canonical linking
+    return redirect(url_for('regenerate_article_by_path', language=language, article_name=article_name))
 
 @app.route('/cache/<path:filename>')
 def cached_content(filename):
@@ -439,12 +572,26 @@ def list_cache():
                         first_line = f.readline().strip()
                         title = first_line if first_line.startswith('<h1>') else filename
                     
+                    # Try to extract language and title from cache key
+                    parts = filename.split('/')
+                    if len(parts) > 1:
+                        language = parts[0]
+                        article_title = parts[1].replace('.html', '').replace('_', ' ')
+                        article_name = parts[1].replace('.html', '')
+                    else:
+                        language = None
+                        article_title = None
+                        article_name = None
+                    
                     cached_files.append({
                         'filename': filename,
                         'path': path,
                         'mtime': mtime,
                         'size': size,
-                        'title': title
+                        'title': title,
+                        'language': language,
+                        'article_title': article_title,
+                        'article_name': article_name
                     })
                 except Exception as e:
                     print(f"Error reading cache file {filename}: {e}")
