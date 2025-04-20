@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wik-\cup-pedia</title>
+    <title>Linguapedia</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <!-- No need for inline styles since they're now in the external CSS file -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
 </head>
-<body class="bg-gray-900 text-white">
+<body class="bg-light">
     <div class="container mx-auto px-4 py-8">
         <div class="text-center mb-8">
-            <h1 class="text-5xl font-serif mb-2">Wik-\cup-pedia</h1>
+            <h1 class="text-5xl font-serif mb-2">Linguapedia</h1>
             <h2 class="text-2xl font-serif">The Synthesized Encyclopedia</h2>
         </div>
         
@@ -113,7 +113,17 @@
                     <option value="7">7</option>
                     <option value="10">10</option>
                 </select>
-                <span class="text-sm text-gray-400 ml-4">Higher values provide more comprehensive articles but take longer to generate</span>
+                <span class="text-sm text-gray-500 ml-4">Higher values provide more comprehensive articles but take longer to generate</span>
+            </div>
+            
+            <div class="features-box mt-6">
+                <h3 class="text-lg font-medium mb-2">How Linguapedia Works</h3>
+                <ul class="list-disc pl-5 text-gray-500 text-sm">
+                    <li>AI selects the most culturally relevant language editions for your topic</li>
+                    <li>Articles are translated with high fidelity to your preferred language</li>
+                    <li>Unique information from each language edition is preserved</li>
+                    <li>Content is synthesized into a single comprehensive article</li>
+                </ul>
             </div>
         </form>
         
@@ -123,33 +133,48 @@
             <div class="recent-grid">
                 {% for article in recent_articles %}
                 <div class="recent-item">
+                    {% if article.job_id %}
+                    <a href="{{ url_for('article', job_id=article.job_id) }}" class="block w-full text-left">
+                    {% else %}
                     <form action="{{ url_for('search') }}" method="post">
                         <input type="hidden" name="title" value="{{ article.title }}">
                         <input type="hidden" name="language" value="{{ article.language }}">
                         <input type="hidden" name="max_translations" value="5">
                         <button type="submit" class="w-full text-left">
-                            <div class="font-medium">{{ article.title }}</div>
-                            <div class="text-sm text-gray-300 flex justify-between">
-                                <span>
-                                    {% for lang in languages %}
-                                        {% if lang.code == article.language %}
-                                            {{ lang.name }}
-                                        {% endif %}
-                                    {% endfor %}
-                                </span>
-                                <span>{{ article.date }}</span>
-                            </div>
+                    {% endif %}
+                        <div class="font-medium">{{ article.title }}</div>
+                        <div class="text-sm text-gray-500 flex justify-between">
+                            <span>
+                                {% for lang in languages %}
+                                    {% if lang.code == article.language %}
+                                        {{ lang.name }}
+                                    {% endif %}
+                                {% endfor %}
+                            </span>
+                            <span>{{ article.date }}</span>
+                        </div>
+                    {% if not article.job_id %}
                         </button>
                     </form>
+                    {% else %}
+                    </a>
+                    {% endif %}
                 </div>
                 {% endfor %}
             </div>
         </div>
         {% endif %}
         
-        <div class="text-center mt-8 text-gray-400 text-sm">
-            <p>Powered by Wikipedia and Claude API</p>
-            <p class="mt-1">Synthesizes articles from multiple language versions for a more comprehensive view</p>
+        <div class="text-center mt-8 text-gray-500 text-sm">
+            <p>Linguapedia synthesizes articles from multiple language versions for a more comprehensive view</p>
+            <div class="claude-attribution mt-2">
+                <span>Powered by</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" class="claude-logo ml-2" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.418 0-8-3.582-8-8s3.582-8 8-8 8 3.582 8 8-3.582 8-8 8z" fill="#da7756"/>
+                    <circle cx="12" cy="12" r="5" fill="#da7756"/>
+                </svg>
+                <span class="ml-1">Claude AI</span>
+            </div>
         </div>
     </div>
     

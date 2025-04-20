@@ -1,50 +1,64 @@
 {% extends "base.html" %}
 
-{% block title %}Cache - Wikipedia Synthesizer{% endblock %}
+{% block title %}Cache - Linguapedia{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <h1>Cached Articles</h1>
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <p>Cache directory: <code>{{ cache_dir }}</code></p>
-        <a href="{{ url_for('clear_cache') }}" class="btn btn-danger" onclick="return confirm('Are you sure you want to clear all cached articles?')">Clear Cache</a>
-    </div>
-    
-    {% if cached_files %}
-        <div class="table-responsive">
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>Title</th>
-                        <th>Last Modified</th>
-                        <th>Size</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for file in cached_files %}
+<div class="container mx-auto px-4 py-8">
+    <div class="bg-white p-6 rounded-lg shadow-lg">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-serif">Cached Articles</h1>
+            <a href="{{ url_for('clear_cache') }}" 
+               class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded" 
+               onclick="return confirm('Are you sure you want to clear all cached articles?')">
+                Clear Cache
+            </a>
+        </div>
+        
+        <p class="text-sm text-gray-500 mb-6">
+            Cache directory: <code class="bg-gray-100 px-2 py-1 rounded">{{ cache_dir }}</code>
+        </p>
+        
+        {% if cached_files %}
+            <div class="border rounded overflow-hidden">
+                <table class="w-full">
+                    <thead class="bg-gray-100">
                         <tr>
-                            <td>{{ file.title }}</td>
-                            <td>{{ file.mtime.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                            <td>{{ (file.size / 1024)|round(1) }} KB</td>
-                            <td>
-                                <a href="{{ url_for('cached_content', filename=file.filename) }}" class="btn btn-sm btn-primary" target="_blank">View</a>
-                                <a href="{{ url_for('cached_content', filename=file.filename) }}" class="btn btn-sm btn-success" download>Download</a>
-                            </td>
+                            <th class="px-4 py-2 text-left">Title</th>
+                            <th class="px-4 py-2 text-left">Last Modified</th>
+                            <th class="px-4 py-2 text-left">Size</th>
+                            <th class="px-4 py-2 text-left">Actions</th>
                         </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% else %}
-        <div class="alert alert-info">
-            No cached articles found.
-        </div>
-    {% endif %}
-    
-    <div class="mt-4">
-        <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Home</a>
+                    </thead>
+                    <tbody>
+                        {% for file in cached_files %}
+                            <tr class="border-t hover:bg-gray-50">
+                                <td class="px-4 py-3">{{ file.title }}</td>
+                                <td class="px-4 py-3 text-gray-500 text-sm">{{ file.mtime.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                <td class="px-4 py-3 text-gray-500 text-sm">{{ (file.size / 1024)|round(1) }} KB</td>
+                                <td class="px-4 py-3">
+                                    <div class="flex space-x-2">
+                                        <a href="{{ url_for('cached_content', filename=file.filename) }}" 
+                                           class="text-blue-600 hover:underline px-2 py-1" 
+                                           target="_blank">
+                                            View
+                                        </a>
+                                        <a href="{{ url_for('cached_content', filename=file.filename) }}" 
+                                           class="text-blue-600 hover:underline px-2 py-1" 
+                                           download>
+                                            Download
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="bg-blue-50 border border-blue-200 rounded p-4 text-blue-800">
+                No cached articles found.
+            </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

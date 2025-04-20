@@ -3,36 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Processing... - Wik-\cup-pedia</title>
+    <title>Processing... - Linguapedia</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
 </head>
-<body class="bg-gray-900 text-white">
-    <header class="bg-gray-800 p-4">
+<body class="bg-light">
+    <header class="bg-gray-800 p-4 site-header">
         <div class="container mx-auto flex justify-between items-center">
-            <a href="{{ url_for('index') }}" class="text-2xl font-serif">Wik-\cup-pedia</a>
+            <a href="{{ url_for('index') }}" class="text-2xl font-serif text-white">Linguapedia</a>
         </div>
     </header>
     
     <div class="container mx-auto px-4 py-8">
-        <div class="bg-gray-800 p-8 rounded-lg shadow-lg max-w-xl mx-auto text-center">
+        <div class="bg-white p-8 rounded-lg shadow-lg max-w-xl mx-auto text-center">
             <h1 class="text-2xl font-semibold mb-6">Synthesizing Article</h1>
             
             <div class="loading-spinner mb-6"></div>
             
             <p class="mb-4">Creating a comprehensive article about <strong>{{ job.title }}</strong> from multiple language editions</p>
             
-            <div id="currentStep" class="text-blue-400 mb-4">
+            <div id="currentStep" class="text-blue-600 mb-4 font-medium">
                 Initializing...
             </div>
             
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill" style="width: {{ job.progress }}%;"></div>
             </div>
-            <div class="text-sm text-gray-400 mt-2">
+            <div class="text-sm text-gray-500 mt-2">
                 <span id="progressText">{{ job.progress }}%</span> complete
             </div>
             
-            <div class="mt-6 bg-gray-700 p-4 rounded text-left">
+            <div class="mt-6 bg-gray-100 p-4 rounded text-left article-sidebar">
                 <h3 class="text-lg font-medium mb-2">Process Steps:</h3>
                 <ul class="text-sm space-y-2">
                     <li class="step-item" data-progress="10">
@@ -58,7 +59,7 @@
                 </ul>
             </div>
             
-            <p class="text-sm text-gray-300 mt-6">
+            <p class="text-sm text-gray-500 mt-6">
                 This process typically takes 3-7 minutes depending on article length and the number of languages.
             </p>
             
@@ -66,10 +67,19 @@
             <div class="error-message mt-4">
                 <p class="text-red-400">Error: {{ job.error }}</p>
                 <p class="mt-2">
-                    <a href="{{ url_for('index') }}" class="text-blue-400 hover:underline">Return to search</a>
+                    <a href="{{ url_for('index') }}" class="text-blue-600 hover:underline">Return to search</a>
                 </p>
             </div>
             {% endif %}
+            
+            <div class="claude-attribution mt-6">
+                <span>Synthesizing with</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" class="claude-logo ml-2" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.418 0-8-3.582-8-8s3.582-8 8-8 8 3.582 8 8-3.582 8-8 8z" fill="#da7756"/>
+                    <circle cx="12" cy="12" r="5" fill="#da7756"/>
+                </svg>
+                <span class="ml-1">Claude AI</span>
+            </div>
         </div>
     </div>
     
@@ -97,7 +107,7 @@
                         errorDiv.innerHTML = `
                             <p class="text-red-400">Error: ${data.error}</p>
                             <p class="mt-2">
-                                <a href="{{ url_for('index') }}" class="text-blue-400 hover:underline">Return to search</a>
+                                <a href="{{ url_for('index') }}" class="text-blue-600 hover:underline">Return to search</a>
                             </p>
                         `;
                         document.querySelector('.container > div').appendChild(errorDiv);
@@ -141,30 +151,5 @@
         // Start polling immediately
         updateProgress();
     </script>
-    
-    <style>
-        .step-item {
-            display: flex;
-            align-items: center;
-            opacity: 0.5;
-            transition: opacity 0.3s;
-        }
-        .step-item.active {
-            opacity: 1;
-        }
-        .step-number {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 24px;
-            height: 24px;
-            background-color: #374151;
-            border-radius: 50%;
-            margin-right: 10px;
-        }
-        .step-item.active .step-number {
-            background-color: #3b82f6;
-        }
-    </style>
 </body>
 </html>

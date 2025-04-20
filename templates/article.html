@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} - Wik-\cup-pedia</title>
+    <title>{{ title }} - Linguapedia</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
 </head>
 <body class="bg-white">
-    <header class="bg-gray-900 text-white p-4">
+    <header class="bg-gray-900 text-white p-4 site-header">
         <div class="container mx-auto flex justify-between items-center">
-            <a href="{{ url_for('index') }}" class="text-2xl font-serif">Wik-\cup-pedia</a>
+            <a href="{{ url_for('index') }}" class="text-2xl font-serif">Linguapedia</a>
             <div class="flex items-center space-x-4">
                 <span>
                     {% for lang in languages %}
@@ -18,7 +19,7 @@
                         {% endif %}
                     {% endfor %}
                 </span>
-                <a href="{{ url_for('index') }}" class="bg-blue-600 hover:bg-blue-700 px-4 py-1 rounded">
+                <a href="{{ url_for('index') }}" class="bg-primary hover:bg-primary-dark px-4 py-1 rounded">
                     New Search
                 </a>
             </div>
@@ -29,13 +30,16 @@
         <div class="wiki-header border-b pb-4 mb-6">
             <div class="flex justify-between items-end">
                 <div>
-                    <span class="text-gray-500 text-sm">From Wik-\cup-pedia, the synthesized encyclopedia</span>
+                    <span class="text-gray-500 text-sm">From Linguapedia, the synthesized encyclopedia</span>
                 </div>
                 <div class="flex space-x-4 text-sm">
                     <a href="{{ url_for('regenerate_article', job_id=job_id) }}" 
                        class="text-blue-600 hover:underline"
                        onclick="return confirm('Are you sure you want to regenerate this article? This will bypass the cache and may take several minutes.')">
                         Regenerate
+                    </a>
+                    <a href="{{ url_for('download_article', job_id=job_id) }}" class="text-blue-600 hover:underline">
+                        Download
                     </a>
                 </div>
             </div>
@@ -46,11 +50,22 @@
                 <article class="wiki-content prose max-w-none" id="articleContent">
                     <!-- Article content will be inserted here via JavaScript -->
                 </article>
+                
+                <div class="claude-attribution mt-8 mb-4 text-center">
+                    <div class="flex items-center justify-center">
+                        <span class="text-gray-500 text-sm">Synthesized with</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" class="claude-logo ml-2" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.418 0-8-3.582-8-8s3.582-8 8-8 8 3.582 8 8-3.582 8-8 8z" fill="#da7756"/>
+                            <circle cx="12" cy="12" r="5" fill="#da7756"/>
+                        </svg>
+                        <span class="ml-1 text-gray-500 text-sm">Claude AI</span>
+                    </div>
+                </div>
             </div>
             
             <aside class="w-full lg:w-1/4 mt-8 lg:mt-0">
                 <div class="sticky top-4">
-                    <div class="bg-gray-100 p-4 rounded mb-6" id="tocContainer">
+                    <div class="article-sidebar mb-6" id="tocContainer">
                         <h4 class="text-lg font-medium mb-2">Contents</h4>
                         <nav class="toc">
                             <ol class="list-none pl-0" id="tocList">
@@ -59,7 +74,7 @@
                         </nav>
                     </div>
                     
-                    <div class="bg-gray-100 p-4 rounded mb-6">
+                    <div class="article-sidebar mb-6">
                         <h4 class="text-lg font-medium mb-2">Article Information</h4>
                         <p class="text-sm mb-3">
                             This article was synthesized from {{ max_translations }} different language versions of Wikipedia.
@@ -92,19 +107,29 @@
                                     Synthesized on: {{ now.strftime('%Y-%m-%d %H:%M') }}
                                 {% endif %}
                             </div>
-                            <div>
-                                Powered by Wik-\cup-pedia & Claude API
-                            </div>
                         </div>
+                    </div>
+                    
+                    <div class="article-sidebar">
+                        <h4 class="text-lg font-medium mb-2">About Linguapedia</h4>
+                        <p class="text-sm mb-3">
+                            Linguapedia synthesizes knowledge across languages, revealing unique perspectives and information found in different Wikipedia editions.
+                        </p>
+                        <ul class="text-sm list-disc pl-5">
+                            <li class="mb-1">AI selects the most relevant language editions</li>
+                            <li class="mb-1">High-fidelity translation preserves detail</li>
+                            <li class="mb-1">Content is comprehensively synthesized</li>
+                            <li class="mb-1">Cultural perspectives are harmonized</li>
+                        </ul>
                     </div>
                 </div>
             </aside>
         </div>
     </main>
     
-    <footer class="bg-gray-100 py-4 border-t">
-        <div class="container mx-auto px-6 text-center text-gray-500 text-sm">
-            <p>Wik-\cup-pedia combines multiple Wikipedia language editions for more comprehensive information</p>
+    <footer class="footer-content">
+        <div class="container mx-auto px-6 text-center">
+            <p>Linguapedia combines multiple Wikipedia language editions for more comprehensive information</p>
             <p class="mt-1">Not affiliated with Wikipedia or the Wikimedia Foundation</p>
         </div>
     </footer>

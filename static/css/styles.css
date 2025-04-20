@@ -1,11 +1,13 @@
 /* Base styles */
 :root {
-    --primary-color: #3b82f6;
-    --primary-hover: #2563eb;
-    --bg-dark: #111827;
-    --bg-darker: #0f172a;
+    --primary-color: #da7756; /* Claude brand color */
+    --primary-hover: #bd5d3a; /* Claude chat button color */
+    --bg-dark: #3d3929; /* Claude font color */
+    --bg-darker: #262114;
+    --bg-light: #eeece2; /* Claude website background */
     --text-light: #f3f4f6;
-    --text-gray: #9ca3af;
+    --text-dark: #3d3929; /* Claude font color */
+    --text-gray: #6b7280;
 }
 
 * {
@@ -15,8 +17,14 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-    line-height: 1.5;
+    font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif; /* Claude website font */
+    line-height: 1.6;
+    color: var(--text-dark);
+    background-color: var(--bg-light);
+}
+
+.bg-white {
+    background-color: #ffffff;
 }
 
 .container {
@@ -28,14 +36,16 @@ body {
 /* Typography */
 h1, h2, h3, h4, h5, h6 {
     font-weight: 600;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
+    font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
 /* Header Styles */
 header {
-    background-color: var(--bg-darker);
+    background-color: var(--bg-dark);
     color: var(--text-light);
     padding: 1rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* Search Page Styles */
@@ -56,20 +66,23 @@ header {
     flex-direction: column;
     align-items: center;
     padding: 0.75rem;
-    background-color: #1f2937;
-    border: none;
+    background-color: #f8f8f8;
+    border: 1px solid #e5e5e5;
     border-radius: 0.25rem;
-    color: var(--text-light);
+    color: var(--text-dark);
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: all 0.2s;
 }
 
 .language-button:hover {
-    background-color: #374151;
+    background-color: #f0f0f0;
+    border-color: #d0d0d0;
 }
 
 .language-button.active {
     background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
 }
 
 .lang-name {
@@ -85,16 +98,21 @@ header {
 .search-bar {
     display: flex;
     margin-bottom: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    border-radius: 0.25rem;
+    overflow: hidden;
 }
 
 .search-input {
     flex: 1;
     padding: 0.75rem 1rem;
-    background-color: #1f2937;
-    border: 1px solid #374151;
+    background-color: white;
+    border: 1px solid #e5e5e5;
     border-right: none;
     border-radius: 0.25rem 0 0 0.25rem;
-    color: var(--text-light);
+    color: var(--text-dark);
+    font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+    font-size: 1rem;
 }
 
 .search-button {
@@ -120,23 +138,27 @@ header {
     display: flex;
     align-items: center;
     margin-top: 1rem;
+    font-size: 0.95rem;
 }
 
 .select-input {
-    background-color: #1f2937;
-    border: 1px solid #374151;
+    background-color: white;
+    border: 1px solid #e5e5e5;
     border-radius: 0.25rem;
     padding: 0.25rem 0.5rem;
     margin-left: 0.5rem;
-    color: var(--text-light);
+    color: var(--text-dark);
+    font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
 /* Recent Articles */
 .recent-articles {
-    background-color: #1f2937;
-    padding: 1rem;
+    background-color: white;
+    border: 1px solid #e5e5e5;
+    padding: 1.5rem;
     border-radius: 0.25rem;
-    margin-bottom: 1rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .recent-grid {
@@ -152,15 +174,16 @@ header {
 }
 
 .recent-item {
-    background-color: #374151;
+    background-color: #f8f8f8;
     padding: 0.75rem;
     border-radius: 0.25rem;
     cursor: pointer;
     transition: background-color 0.2s;
+    border: 1px solid #e5e5e5;
 }
 
 .recent-item:hover {
-    background-color: #4b5563;
+    background-color: #f0f0f0;
 }
 
 /* Loading and Progress */
@@ -168,7 +191,7 @@ header {
     width: 4rem;
     height: 4rem;
     border-radius: 50%;
-    border: 0.25rem solid rgba(255, 255, 255, 0.1);
+    border: 0.25rem solid rgba(0, 0, 0, 0.1);
     border-top-color: var(--primary-color);
     animation: spin 1s linear infinite;
     margin: 0 auto;
@@ -179,8 +202,8 @@ header {
 }
 
 .progress-bar {
-    height: 1rem;
-    background-color: #374151;
+    height: 0.75rem;
+    background-color: #e5e5e5;
     border-radius: 9999px;
     overflow: hidden;
     margin-top: 0.5rem;
@@ -209,6 +232,8 @@ header {
     border-bottom: 1px solid #e5e7eb;
     padding-bottom: 0.5rem;
     margin-bottom: 1rem;
+    font-weight: 700;
+    color: #000;
 }
 
 .wiki-content h2 {
@@ -217,12 +242,16 @@ header {
     padding-bottom: 0.25rem;
     margin-top: 1.5rem;
     margin-bottom: 0.75rem;
+    font-weight: 600;
+    color: #333;
 }
 
 .wiki-content h3 {
     font-size: 1.25rem;
     margin-top: 1.25rem;
     margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #444;
 }
 
 .wiki-content p {
@@ -240,6 +269,7 @@ header {
 
 .toc-level-1 {
     margin-bottom: 0.25rem;
+    font-weight: 600;
 }
 
 .toc-level-2 {
@@ -274,6 +304,7 @@ a:hover {
 /* Prose styles for article content */
 .prose {
     max-width: 65ch;
+    color: var(--text-dark);
 }
 
 .prose a {
@@ -289,6 +320,7 @@ a:hover {
     padding-left: 1rem;
     font-style: italic;
     margin: 1rem 0;
+    color: #555;
 }
 
 .prose code {
@@ -296,6 +328,7 @@ a:hover {
     padding: 0.2rem 0.4rem;
     border-radius: 0.25rem;
     font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9em;
 }
 
 .prose pre {
@@ -326,8 +359,8 @@ a:hover {
 }
 
 /* Tailwind-like utility classes */
-.bg-gray-900 { background-color: #111827; }
-.bg-gray-800 { background-color: #1f2937; }
+.bg-gray-900 { background-color: var(--bg-dark); }
+.bg-gray-800 { background-color: var(--bg-darker); }
 .bg-white { background-color: #ffffff; }
 .bg-gray-100 { background-color: #f3f4f6; }
 
@@ -335,10 +368,10 @@ a:hover {
 .text-gray-400 { color: #9ca3af; }
 .text-gray-300 { color: #d1d5db; }
 .text-gray-500 { color: #6b7280; }
-.text-blue-600 { color: #2563eb; }
+.text-blue-600 { color: var(--primary-color); }
 .text-red-400 { color: #f87171; }
 
-.font-serif { font-family: Georgia, Cambria, "Times New Roman", Times, serif; }
+.font-serif { font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif; }
 .text-5xl { font-size: 3rem; }
 .text-2xl { font-size: 1.5rem; }
 .text-xl { font-size: 1.25rem; }
@@ -405,7 +438,7 @@ a:hover {
     .lg\:mt-0 { margin-top: 0; }
 }
 
-.hover\:bg-blue-700:hover { background-color: #1d4ed8; }
+.hover\:bg-blue-700:hover { background-color: var(--primary-hover); }
 .hover\:underline:hover { text-decoration: underline; }
 
 .text-center { text-align: center; }
@@ -418,101 +451,165 @@ a:hover {
 
 .hidden { display: none; }
 
-        /* Add styles for dropdown */
-        .language-dropdown {
-            position: relative;
-            display: inline-block;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 0.75rem;
-            background-color: #1f2937;
-            border: none;
-            border-radius: 0.25rem;
-            color: var(--text-light);
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
+/* Language dropdown styles */
+.language-dropdown {
+    position: relative;
+    display: inline-block;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.75rem;
+    background-color: #f8f8f8;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.25rem;
+    color: var(--text-dark);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
 
-        .language-dropdown.active {
-            background-color: var(--primary-color);
-        }
-        
-        .dropdown-content {
-            display: none;
-            position: absolute;
-            background-color: #2d3748;
-            min-width: 200px;
-            max-height: 300px;
-            overflow-y: auto;
-            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-            z-index: 10;
-            border-radius: 0.5rem;
-        }
-        
-        .dropdown-content button {
-            color: white;
-            padding: 12px 16px;
-            text-decoration: none;
-            display: block;
-            width: 100%;
-            text-align: left;
-            border: none;
-            background: none;
-            cursor: pointer;
-            flex-direction: column;
-            align-items: center;
-            padding: 0.75rem;
-            background-color: #1f2937;
-            border: none;
-            border-radius: 0.25rem;
-            color: var(--text-light);
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        
-        .dropdown-content button:hover {
-            background-color: #4a5568;
-        }
-        
-        .show {
-            display: block;
-        }
-        
-        .language-dropdown {
-            position: relative;
-            display: block;
-            grid-column: span 1;
-        }
-        
-        /* Make the dropdown button fill the container */
-        .language-dropdown .language-button {
-            width: 100%;
-            height: 100%;
-        }
-        
-        /* Fix for the dropdown menu positioning */
-        .dropdown-content {
-            top: 100%;
-            left: 0;
-            right: 0;
-            margin-top: 5px;
-        }
-        
-        /* Make dropdown items match the main button style */
-        .dropdown-content button {
-            display: block;
-            width: 100%;
-            text-align: center;
-            padding: 10px;
-            background-color: #1f2937;
-            border: none;
-            color: white;
-            cursor: pointer;
-        }
-        
-        /* Highlight effect for dropdown items */
-        .dropdown-content button:hover {
-            background-color: #374151;
-        }
-        
+.language-dropdown.active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: white;
+    min-width: 200px;
+    max-height: 300px;
+    overflow-y: auto;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.1);
+    z-index: 10;
+    border-radius: 0.5rem;
+    border: 1px solid #e5e5e5;
+}
+
+.dropdown-content button {
+    color: var(--text-dark);
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+.dropdown-content button:hover {
+    background-color: #f8f8f8;
+}
+
+.show {
+    display: block;
+}
+
+.language-dropdown {
+    position: relative;
+    display: block;
+    grid-column: span 1;
+}
+
+/* Make the dropdown button fill the container */
+.language-dropdown .language-button {
+    width: 100%;
+    height: 100%;
+}
+
+/* Fix for the dropdown menu positioning */
+.dropdown-content {
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 5px;
+}
+
+/* Make dropdown items match the main button style */
+.dropdown-content button {
+    display: block;
+    width: 100%;
+    text-align: center;
+    padding: 10px;
+    background-color: white;
+    border: none;
+    color: var(--text-dark);
+    cursor: pointer;
+}
+
+/* Highlight effect for dropdown items */
+.dropdown-content button:hover {
+    background-color: #f8f8f8;
+}
+
+/* Claude attribution */
+.claude-attribution {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1rem;
+    color: var(--text-gray);
+}
+
+.claude-logo {
+    height: 20px;
+    margin-right: 0.5rem;
+}
+
+/* Status page step items */
+.step-item {
+    display: flex;
+    align-items: center;
+    opacity: 0.5;
+    transition: opacity 0.3s;
+}
+.step-item.active {
+    opacity: 1;
+}
+.step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background-color: #e5e5e5;
+    border-radius: 50%;
+    margin-right: 10px;
+}
+.step-item.active .step-number {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* Base layout template */
+.site-header {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.article-sidebar {
+    background-color: #fafafa;
+    padding: 1.25rem;
+    border-radius: 0.5rem;
+    border: 1px solid #e5e5e5;
+    margin-bottom: 1.25rem;
+}
+
+.footer-content {
+    font-size: 0.875rem;
+    color: var(--text-gray);
+    border-top: 1px solid #e5e7eb;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    background-color: #fafafa;
+}
+
+/* Features box */
+.features-box {
+    background-color: white;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    margin-top: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
