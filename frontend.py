@@ -168,6 +168,10 @@ def process_job(job_id, title, language, max_translations, no_cache=False):
                     'cache_path': cached_path
                 }
                 
+                # We can't determine the selected languages for cached content
+                # This will use the fallback in the template
+                jobs[job_id]['selected_languages'] = []
+                
                 # Update recent articles in session cannot be called from background thread
                 # It will be called when the user views the article
                 return
@@ -188,6 +192,9 @@ def process_job(job_id, title, language, max_translations, no_cache=False):
             langlinks, 
             max_translations=max_translations
         )
+        
+        # Store the selected languages in the job
+        jobs[job_id]['selected_languages'] = relevant_languages
         
         # Create a list of tuples for selected languages
         translations = []
@@ -292,7 +299,9 @@ def article(job_id):
         return redirect(url_for('index'))
     
     job = jobs[job_id]
-    languages = [
+    
+    # Define all available languages with names
+    all_languages = [
         {"code": "en", "name": "English"},
         {"code": "ja", "name": "日本語"},
         {"code": "ru", "name": "Русский"},
@@ -304,6 +313,9 @@ def article(job_id):
         {"code": "pt", "name": "Português"},
         {"code": "pl", "name": "Polski"},
     ]
+    
+    # Get the selected languages from the job if available
+    selected_languages = job.get('selected_languages', [])
     
     # Update recent articles in session when viewing an article
     update_recent_articles_in_session()
@@ -318,7 +330,9 @@ def article(job_id):
                           language=job['language'],
                           max_translations=job['max_translations'],
                           now=datetime.datetime.now(),
-                          languages=languages,
+                          languages=all_languages,
+                          all_languages=all_languages,
+                          selected_languages=selected_languages,
                           from_cache=from_cache,
                           cache_path=cache_path,
                           job_id=job_id)
